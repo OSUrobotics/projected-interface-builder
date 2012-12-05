@@ -8,6 +8,7 @@ from std_msgs.msg import ColorRGBA
 
 from matplotlib.nxutils import pnpoly
 import sys
+import numpy as np
 
 class Colors:
     WHITE = ColorRGBA(255,255,255,0)
@@ -98,7 +99,7 @@ class Builder(QtGui.QWidget):
         ros_tab_layout.addWidget(self.but_send                       )
         
         layout.addWidget(self.wid_tabs, 0, 1, 1, 2)
-        layout.addWidget(self.wid_draw, 0, 0, 1, 1)
+        layout.addWidget(self.wid_draw, 0, 0, 2, 1)
         layout.addWidget(self.but_save, 2, 1)
         layout.addWidget(self.but_load, 2, 2)
         
@@ -147,6 +148,8 @@ class Builder(QtGui.QWidget):
         y = float(self.offset_y.text())
         z = float(self.offset_z.text())
         
+        self.polygon_clear_proxy()
+
         for name, qt_poly in self.wid_draw.objects.iteritems():
             ps = PolygonStamped(header=header)
             for pt in qt_poly:
@@ -159,7 +162,7 @@ class Builder(QtGui.QWidget):
     def startnode(self):
         import roslib; roslib.load_manifest('projector_interface')
         import rospy
-        from projector_interface.srv import DrawPolygon
+        from projector_interface.srv import DrawPolygon, ClearPolygons
         from geometry_msgs.msg import Point, PolygonStamped
 
         rospy.init_node('interface_builder', anonymous=True)
@@ -169,6 +172,9 @@ class Builder(QtGui.QWidget):
     	rospy.loginfo("Waiting for polygon service")
     	self.polygon_proxy.wait_for_service()
     	rospy.loginfo("polygon service ready")
+        rospy.loginfo("Waiting for polygon clear service")
+        self.polygon_clear_proxy = rospy.ServiceProxy('/clear_polygons', ClearPolygons)
+        rospy.loginfo("polygon clear service ready")
     	self.polygon_viz = rospy.Publisher('/polygon_viz', PolygonStamped)
         
         
@@ -189,11 +195,11 @@ class Builder(QtGui.QWidget):
         self.wid_draw.updateName(old_name, text)
         
     def keyPressEvent(self, event):
-        if event.key() == 16777248:
+        if event.key() in (16777248, 16777216):
             self.wid_draw.keyPressEvent(event)
         
     def keyReleaseEvent(self, event):
-        if event.key() == 16777248:
+        if event.key() in (16777248, 16777216):
             self.wid_draw.keyReleaseEvent(event)
         
         
@@ -204,6 +210,7 @@ class DrawWidget(QtGui.QWidget):
     polygonAdded = QtCore.Signal(str)
     active_poly = ''
     snap = False
+    axis_align = False
     
     def __init__(self):
         super(DrawWidget, self).__init__()
@@ -248,6 +255,14 @@ class DrawWidget(QtGui.QWidget):
                     return v
         return None
 
+    def snapToAxis(self, pt):
+        xdist = abs(pt.x() - self.current_poly[-1].x())
+        ydist = abs(pt.y() - self.current_poly[-1].y())
+        if xdist < ydist:
+            return QtCore.QPoint(self.current_poly[-1].x(), pt.y())
+        else:
+            return QtCore.QPoint(pt.x(), self.current_poly[-1].y())
+
     def mousePressEvent(self, event):
         self.setMouseTracking(True)
         if self.snap and not self.otherSnap:
@@ -260,10 +275,14 @@ class DrawWidget(QtGui.QWidget):
             ))
             return
         if (event.button() == QtCore.Qt.MouseButton.LeftButton) and (self.polygon_active):
-            if len(self.current_poly) == 1:
-                self.current_poly[0][1] = (event.x(), event.y())
+            if self.axis_align:
+                pos = self.snapPos
             else:
-                self.current_poly.extend([self.current_poly[-1],event.pos()])
+                pos = event.pos()
+            if len(self.current_poly) == 1:
+                self.current_poly[0][1] = (pos.x(), pos.y())
+            else:
+                self.current_poly.extend([self.current_poly[-1],pos])
         elif (event.button() == QtCore.Qt.MouseButton.LeftButton) and (not self.polygon_active):
             self.current_poly.extend([event.pos(),event.pos()])
             self.cursorx = event.x()
@@ -290,11 +309,14 @@ class DrawWidget(QtGui.QWidget):
 
     def keyPressEvent(self, event):
         if event.key() == 16777248:
-            pass
+            self.axis_align = True
+        elif event.key() == 16777216:
+            self.polygon_active = False
+            self.current_poly = []
         
     def keyReleaseEvent(self, event):
         if event.key() == 16777248:
-            pass
+            self.axis_align = False
 
     def paintEvent(self, e):
         qp = QtGui.QPainter()
@@ -302,6 +324,9 @@ class DrawWidget(QtGui.QWidget):
         qp.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         if self.polygon_active:
             cursor = QtCore.QPoint(self.cursorx, self.cursory)
+            if self.axis_align:
+                cursor = self.snapToAxis(cursor)
+                self.snapPos = cursor
             qp.drawLines(self.current_poly)
             self.snap = False
             for p in self.current_poly:
@@ -329,7 +354,8 @@ class DrawWidget(QtGui.QWidget):
             pen.setWidth(1)
             qp.setPen(pen)
             
-            qp.drawText(obj.boundingRect(), QtCore.Qt.AlignCenter, name)
+            # qp.drawText(obj.boundingRect(), QtCore.Qt.AlignCenter, name)
+            qp.drawText(np.mean(obj), name)
             
         qp.end()
 
