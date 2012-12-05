@@ -241,9 +241,16 @@ class DrawWidget(QtGui.QWidget):
         d = hypot(p1.x()-p2.x(), p1.y()-p2.y())
         return d < 10
 
+    def closeToAny(self, p):
+        for poly in self.objects.values():
+            for v in poly:
+                if self.closeTo(v,p):
+                    return v
+        return None
+
     def mousePressEvent(self, event):
         self.setMouseTracking(True)
-        if self.snap:
+        if self.snap and not self.otherSnap:
             self.mouseDoubleClickEvent(QtGui.QMouseEvent(
                 event.type(),
                 self.snapPos,
@@ -303,6 +310,11 @@ class DrawWidget(QtGui.QWidget):
                     self.snap = True
                     self.snapPos = p
                     break
+            self.otherSnap = self.closeToAny(cursor)
+            if self.otherSnap is not None:
+                qp.drawLine(self.current_poly[-1], self.otherSnap)
+                self.snap = True
+                self.snapPos = self.otherSnap
             if not self.snap:
                 qp.drawLine(self.current_poly[-1], cursor)
             
