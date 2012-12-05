@@ -186,7 +186,7 @@ class DrawWidget(QtGui.QWidget):
         self.cursorx = event.x()
         self.cursory = event.y()
 
-    def mouseHoverEvent(self, event):
+    def keyPressEvent(self, event):
         print event
 
     def paintEvent(self, e):
