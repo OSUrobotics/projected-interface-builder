@@ -277,6 +277,8 @@ class DrawWidget(QtGui.QWidget):
         if (event.button() == QtCore.Qt.MouseButton.LeftButton) and (self.polygon_active):
             if self.axis_align:
                 pos = self.snapPos
+            elif self.otherSnap is not None:
+                pos = self.otherSnap
             else:
                 pos = event.pos()
             if len(self.current_poly) == 1:
