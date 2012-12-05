@@ -337,7 +337,7 @@ class DrawWidget(QtGui.QWidget):
                     self.snap = True
                     self.snapPos = p
                     break
-            self.otherSnap = self.closeToAny(cursor)
+            self.otherSnap = self.closeToAny(cursor) if not self.snap else None
             if self.otherSnap is not None:
                 qp.drawLine(self.current_poly[-1], self.otherSnap)
                 self.snap = True
