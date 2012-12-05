@@ -11,14 +11,10 @@ class Builder(QtGui.QWidget):
         super(Builder, self).__init__()
         self.initUI()
         
-        self.show()
-        # import pdb; pdb.set_trace()
-        
+        self.show()        
         
     def initUI(self):
         self.setGeometry(0, 480, 800, 400)
-        # layout = QtGui.QVBoxLayout()
-        # layout.setDirection(QtGui.QVBoxLayout.Direction.LeftToRight)
         layout = QtGui.QGridLayout()
         self.setLayout(layout)
         self.wid_draw = DrawWidget()
@@ -44,7 +40,6 @@ class Builder(QtGui.QWidget):
         polygon_tab_layout.addWidget(self.wid_list,   0, 0)
         polygon_tab_layout.addWidget(self.but_delete, 1, 0)
         polygon_tab_layout.addWidget(self.wid_name,   2, 0)
-        
         
         #Widgets for the ROS tab
         ros_tab_container = QtGui.QWidget()
@@ -133,7 +128,7 @@ class DrawWidget(QtGui.QWidget):
         super(DrawWidget, self).__init__()
         self.setGeometry(0, 480, 640, 400)
         timer = PySide.QtCore.QTimer(self)
-        timer.setInterval(100)
+        timer.setInterval(50)
         timer.timeout.connect(self.update)
         timer.start()
 
@@ -162,6 +157,7 @@ class DrawWidget(QtGui.QWidget):
         return newpoints
 
     def mousePressEvent(self, event):
+        self.setMouseTracking(True)
         if (event.button() == QtCore.Qt.MouseButton.LeftButton) and (self.polygon_active):
             if len(self.current_poly) == 1:
                 self.current_poly[0][1] = (event.x(), event.y())
@@ -169,6 +165,8 @@ class DrawWidget(QtGui.QWidget):
                 self.current_poly.extend([self.current_poly[-1],event.pos()])
         elif (event.button() == QtCore.Qt.MouseButton.LeftButton) and (not self.polygon_active):
             self.current_poly.extend([event.pos(),event.pos()])
+            self.cursorx = event.x()
+            self.cursory = event.y()
             self.polygon_active = True
                
     def mouseDoubleClickEvent(self, event):
@@ -185,18 +183,20 @@ class DrawWidget(QtGui.QWidget):
         self.current_poly = []        
                 
     def mouseMoveEvent(self, event):
-        pass
+        self.cursorx = event.x()
+        self.cursory = event.y()
 
     def mouseHoverEvent(self, event):
         print event
 
     def paintEvent(self, e):
-        # cursor = (self.cursor().pos().x()-self.pos().x(), self.cursor().pos().y()-self.pos().y())
         qp = QtGui.QPainter()
         qp.begin(self)
         qp.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         if self.polygon_active:
+            cursor = (self.cursorx, self.cursory)
             qp.drawLines(self.current_poly)
+            qp.drawLine(self.current_poly[-1], QtCore.QPoint(*cursor))
         for name, obj in self.objects.iteritems():
             # active = pnpoly(cursor[0], cursor[1], [(p.x(), p.y()) for p in obj])
             if self.active_poly == name:
