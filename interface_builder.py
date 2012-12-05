@@ -2,9 +2,18 @@
 import PySide
 from PySide import QtGui, QtCore
 from PySide.QtGui import QPalette
+from math import hypot
+
+from std_msgs.msg import ColorRGBA
 
 from matplotlib.nxutils import pnpoly
 import sys
+
+class Colors:
+    WHITE = ColorRGBA(255,255,255,0)
+    RED   = ColorRGBA(255,  0,  0,0)
+    GREEN = ColorRGBA(  0,255,  0,0)
+    BLUE  = ColorRGBA(  0,  0,255,0)
 
 class Builder(QtGui.QWidget):
     def __init__(self):
@@ -43,7 +52,9 @@ class Builder(QtGui.QWidget):
         
         #Widgets for the ROS tab
         ros_tab_container = QtGui.QWidget()
-        ros_tab_layout = QtGui.QGridLayout()
+        # ros_tab_layout = QtGui.QGridLayout()
+        ros_tab_layout = QtGui.QVBoxLayout()
+        ros_tab_layout.addStretch(1)
         ros_tab_container.setLayout(ros_tab_layout)
         self.wid_tabs.addTab(ros_tab_container, 'ROS')
         
@@ -55,13 +66,25 @@ class Builder(QtGui.QWidget):
         
         self.wid_frame = QtGui.QLineEdit('/base_link', ros_tab_container)
         self.wid_resolution = QtGui.QLineEdit('1', ros_tab_container)
+        self.wid_z = QtGui.QLineEdit('1', ros_tab_container)
         
-        ros_tab_layout.addWidget(self.but_startros,                    0, 0)
-        ros_tab_layout.addWidget(QtGui.QLabel('Interface frame id'),   1, 0)
-        ros_tab_layout.addWidget(self.wid_frame,                       2, 0)
-        ros_tab_layout.addWidget(QtGui.QLabel('Resolution (m/pixel)'), 3, 0)
-        ros_tab_layout.addWidget(self.wid_resolution,                  4, 0)
-        ros_tab_layout.addWidget(self.but_send,                        5, 0)
+        # ros_tab_layout.addWidget(self.but_startros,                    0, 0)
+        # ros_tab_layout.addWidget(QtGui.QLabel('Interface frame id'),   1, 0)
+        # ros_tab_layout.addWidget(self.wid_frame,                       2, 0)
+        # ros_tab_layout.addWidget(QtGui.QLabel('Resolution (m/pixel)'), 3, 0)
+        # ros_tab_layout.addWidget(self.wid_resolution,                  4, 0)
+        # ros_tab_layout.addWidget(QtGui.QLabel('Z'),                    5, 0)
+        # ros_tab_layout.addWidget(self.wid_z,                           6, 0)
+        # ros_tab_layout.addWidget(self.but_send,                        7, 0)
+        
+        ros_tab_layout.addWidget(self.but_startros                   )
+        ros_tab_layout.addWidget(QtGui.QLabel('Interface frame id')  )
+        ros_tab_layout.addWidget(self.wid_frame                      )
+        ros_tab_layout.addWidget(QtGui.QLabel('Resolution (m/pixel)'))
+        ros_tab_layout.addWidget(self.wid_resolution                 )
+        ros_tab_layout.addWidget(QtGui.QLabel('Z')                   )
+        ros_tab_layout.addWidget(self.wid_z                          )
+        ros_tab_layout.addWidget(self.but_send                       )
         
         layout.addWidget(self.wid_draw, 0, 0, 1, 1)
         
@@ -79,10 +102,13 @@ class Builder(QtGui.QWidget):
         
         res = float(self.wid_resolution.text())
         
+        z = float(self.wid_z.text())
+        
         for name, qt_poly in self.wid_draw.objects.iteritems():
             ps = PolygonStamped(header=header)
             for pt in qt_poly:
-                ps.polygon.points.append(Point(pt.x()*res, pt.y()*res, 1))
+                ps.polygon.points.append(Point(pt.x()*res, pt.y()*res, z))
+            self.polygon_proxy(name, True, Colors.WHITE)
             
             print ps
         
@@ -114,8 +140,14 @@ class Builder(QtGui.QWidget):
         self.wid_list.currentItem().setText(text)
         self.wid_draw.updateName(old_name, text)
         
-    # def itemDoubleClicked(self, item):
-    #     self.wid_list.editItem(item)
+    def keyPressEvent(self, event):
+        if event.key() == 16777248:
+            self.wid_draw.keyPressEvent(event)
+        
+    def keyReleaseEvent(self, event):
+        if event.key() == 16777248:
+            self.wid_draw.keyReleaseEvent(event)
+        
         
 class DrawWidget(QtGui.QWidget):
     objects = dict()
@@ -123,6 +155,7 @@ class DrawWidget(QtGui.QWidget):
     current_poly = []
     polygonAdded = QtCore.Signal(str)
     active_poly = ''
+    snap = False
     
     def __init__(self):
         super(DrawWidget, self).__init__()
@@ -156,8 +189,21 @@ class DrawWidget(QtGui.QWidget):
         
         return newpoints
 
+    def closeTo(self, p1, p2):
+        d = hypot(p1.x()-p2.x(), p1.y()-p2.y())
+        return d < 10
+
     def mousePressEvent(self, event):
         self.setMouseTracking(True)
+        if self.snap:
+            self.mouseDoubleClickEvent(QtGui.QMouseEvent(
+                event.type(),
+                self.snapPos,
+                event.button(),
+                event.buttons(),
+                event.modifiers(),
+            ))
+            return
         if (event.button() == QtCore.Qt.MouseButton.LeftButton) and (self.polygon_active):
             if len(self.current_poly) == 1:
                 self.current_poly[0][1] = (event.x(), event.y())
@@ -181,22 +227,37 @@ class DrawWidget(QtGui.QWidget):
         self.polygonAdded.emit(poly_name)
         self.polygon_active = False
         self.current_poly = []        
+        self.snap = False
                 
     def mouseMoveEvent(self, event):
         self.cursorx = event.x()
         self.cursory = event.y()
 
     def keyPressEvent(self, event):
-        print event
+        if event.key() == 16777248:
+            pass
+        
+    def keyReleaseEvent(self, event):
+        if event.key() == 16777248:
+            pass
 
     def paintEvent(self, e):
         qp = QtGui.QPainter()
         qp.begin(self)
         qp.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         if self.polygon_active:
-            cursor = (self.cursorx, self.cursory)
+            cursor = QtCore.QPoint(self.cursorx, self.cursory)
             qp.drawLines(self.current_poly)
-            qp.drawLine(self.current_poly[-1], QtCore.QPoint(*cursor))
+            self.snap = False
+            for p in self.current_poly:
+                if self.closeTo(cursor, p):
+                    qp.drawLine(self.current_poly[-1], p)
+                    self.snap = True
+                    self.snapPos = p
+                    break
+            if not self.snap:
+                qp.drawLine(self.current_poly[-1], cursor)
+            
         for name, obj in self.objects.iteritems():
             # active = pnpoly(cursor[0], cursor[1], [(p.x(), p.y()) for p in obj])
             if self.active_poly == name:
