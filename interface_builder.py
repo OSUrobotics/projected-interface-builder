@@ -19,15 +19,20 @@ class Builder(QtGui.QWidget):
     def __init__(self):
         super(Builder, self).__init__()
         self.initUI()
-        
         self.show()        
         
     def initUI(self):
-        self.setGeometry(0, 480, 800, 400)
+        self.setGeometry(0, 500, 900, 400)
         layout = QtGui.QGridLayout()
         self.setLayout(layout)
         self.wid_draw = DrawWidget()
         self.wid_draw.polygonAdded.connect(self.polygonAdded)
+        
+        self.but_save = QtGui.QPushButton('Save', self)
+        self.but_load = QtGui.QPushButton('Load', self)
+        
+        self.but_save.clicked.connect(self.save_polygons)
+        self.but_load.clicked.connect(self.load_polygons)
         
         # Widgets for the polygon tab
         polygon_tab_container = QtGui.QWidget()
@@ -92,10 +97,43 @@ class Builder(QtGui.QWidget):
         ros_tab_layout.addWidget(self.offset_z                       )
         ros_tab_layout.addWidget(self.but_send                       )
         
+        layout.addWidget(self.wid_tabs, 0, 1, 1, 2)
         layout.addWidget(self.wid_draw, 0, 0, 1, 1)
+        layout.addWidget(self.but_save, 2, 1)
+        layout.addWidget(self.but_load, 2, 2)
+        
         
         layout.setColumnMinimumWidth(0, 640)
         
+    def save_polygons(self):
+        fname, _ = QtGui.QFileDialog.getSaveFileName(self, 'Save') 
+        import pickle
+        with open(fname, 'w') as f:
+            pickle.dump(dict(
+                polygons   = self.wid_draw.objects,
+                frame_id   = self.wid_frame.text(),
+                resolution = self.wid_resolution.text(),
+                offset_x   = self.offset_x.text(),
+                offset_y   = self.offset_y.text(),
+                offset_z   = self.offset_z.text()
+            ), f)
+            
+    def load_polygons(self):
+        fname, _ = QtGui.QFileDialog.getOpenFileName(self, 'Load') 
+        import pickle
+        with open(fname, 'r') as f:
+            data = pickle.load(f)
+            self.wid_draw.objects = data['polygons']
+            self.wid_frame.setText(data['frame_id'])
+            self.wid_resolution.setText(data['resolution'])
+            self.offset_x.setText(data['offset_x'])
+            self.offset_y.setText(data['offset_y'])
+            self.offset_z.setText(data['offset_z'])
+            
+            self.wid_list.clear()
+            for name in data['polygons'].keys():
+                self.polygonAdded(name)
+                    
     def sendPolys(self):
         import rospy
         from geometry_msgs.msg import Point, PolygonStamped
