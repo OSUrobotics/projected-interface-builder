@@ -66,7 +66,9 @@ class Builder(QtGui.QWidget):
         
         self.wid_frame = QtGui.QLineEdit('/base_link', ros_tab_container)
         self.wid_resolution = QtGui.QLineEdit('1', ros_tab_container)
-        self.wid_z = QtGui.QLineEdit('1', ros_tab_container)
+        self.offset_x = QtGui.QLineEdit('0.0', ros_tab_container)
+        self.offset_y = QtGui.QLineEdit('0.0', ros_tab_container)
+        self.offset_z = QtGui.QLineEdit('0.0', ros_tab_container)
         
         # ros_tab_layout.addWidget(self.but_startros,                    0, 0)
         # ros_tab_layout.addWidget(QtGui.QLabel('Interface frame id'),   1, 0)
@@ -82,8 +84,12 @@ class Builder(QtGui.QWidget):
         ros_tab_layout.addWidget(self.wid_frame                      )
         ros_tab_layout.addWidget(QtGui.QLabel('Resolution (m/pixel)'))
         ros_tab_layout.addWidget(self.wid_resolution                 )
-        ros_tab_layout.addWidget(QtGui.QLabel('Z')                   )
-        ros_tab_layout.addWidget(self.wid_z                          )
+        ros_tab_layout.addWidget(QtGui.QLabel('x offset')            )
+        ros_tab_layout.addWidget(self.offset_x                       )
+        ros_tab_layout.addWidget(QtGui.QLabel('y offset')            )
+        ros_tab_layout.addWidget(self.offset_y                       )
+        ros_tab_layout.addWidget(QtGui.QLabel('z offset')            )
+        ros_tab_layout.addWidget(self.offset_z                       )
         ros_tab_layout.addWidget(self.but_send                       )
         
         layout.addWidget(self.wid_draw, 0, 0, 1, 1)
@@ -99,13 +105,14 @@ class Builder(QtGui.QWidget):
         header.stamp = rospy.Time.now()
         
         res = float(self.wid_resolution.text())
-        
-        z = float(self.wid_z.text())
+        x = float(self.offset_x.text())
+        y = float(self.offset_y.text())
+        z = float(self.offset_z.text())
         
         for name, qt_poly in self.wid_draw.objects.iteritems():
             ps = PolygonStamped(header=header)
             for pt in qt_poly:
-                ps.polygon.points.append(Point(pt.x()*res, pt.y()*res, z))
+                ps.polygon.points.append(Point(pt.x()*res+x, pt.y()*res+y, z))
             self.polygon_proxy(name, True, ps, Colors.WHITE)
             self.polygon_viz.publish(ps)
             
