@@ -91,11 +91,9 @@ class Builder(QtGui.QWidget):
         layout.setColumnMinimumWidth(0, 640)
         
     def sendPolys(self):
-        import roslib; roslib.load_manifest('projector_interface')
         import rospy
-        from projector_interface.srv import GetCursorStats, DrawPolygon, CircleInhibit
         from geometry_msgs.msg import Point, PolygonStamped
-        
+
         header = rospy.Header()
         header.frame_id = self.wid_frame.text()
         header.stamp = rospy.Time.now()
@@ -108,12 +106,17 @@ class Builder(QtGui.QWidget):
             ps = PolygonStamped(header=header)
             for pt in qt_poly:
                 ps.polygon.points.append(Point(pt.x()*res, pt.y()*res, z))
-            self.polygon_proxy(name, True, Colors.WHITE)
+            self.polygon_proxy(name, True, ps, Colors.WHITE)
+            self.polygon_viz.publish(ps)
             
             print ps
         
     def startnode(self):
+        import roslib; roslib.load_manifest('projector_interface')
         import rospy
+        from projector_interface.srv import DrawPolygon
+        from geometry_msgs.msg import Point, PolygonStamped
+
         rospy.init_node('interface_builder', anonymous=True)
         self.but_startros.setEnabled(False)
         
