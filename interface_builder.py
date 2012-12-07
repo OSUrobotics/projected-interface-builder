@@ -15,6 +15,7 @@ class Colors:
     RED   = ColorRGBA(255,  0,  0,0)
     GREEN = ColorRGBA(  0,255,  0,0)
     BLUE  = ColorRGBA(  0,  0,255,0)
+    GRAY  = ColorRGBA(128,128,128,0)
 
 class Builder(QtGui.QWidget):
     def __init__(self):
@@ -215,10 +216,15 @@ class DrawWidget(QtGui.QWidget):
     def __init__(self):
         super(DrawWidget, self).__init__()
         self.setGeometry(0, 480, 640, 400)
+        self.setAutoFillBackground(True)
+        palette = self.palette()
+        palette.setColor(QtGui.QPalette.Window, QtGui.QColor(0,0,0))
+        self.setPalette(palette)
         timer = PySide.QtCore.QTimer(self)
         timer.setInterval(50)
         timer.timeout.connect(self.update)
         timer.start()
+        
 
     def updateName(self, oldName, newName):
         if oldName != newName:
@@ -324,6 +330,9 @@ class DrawWidget(QtGui.QWidget):
         qp = QtGui.QPainter()
         qp.begin(self)
         qp.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        pen = qp.pen()
+        pen.setColor(QtGui.QColor(255,255,255))
+        qp.setPen(pen)
         if self.polygon_active:
             cursor = QtCore.QPoint(self.cursorx, self.cursory)
             if self.axis_align:
@@ -344,17 +353,19 @@ class DrawWidget(QtGui.QWidget):
                 self.snapPos = self.otherSnap
             if not self.snap:
                 qp.drawLine(self.current_poly[-1], cursor)
-            
+        
+        pen = qp.pen()
+        pen.setColor(QtGui.QColor(128,128,128))
         for name, obj in self.objects.iteritems():
             # active = pnpoly(cursor[0], cursor[1], [(p.x(), p.y()) for p in obj])
             if self.active_poly == name:
-                pen = qp.pen()
                 pen.setWidth(3)
-                qp.setPen(pen)
-            qp.drawPolygon(obj) 
-            pen = qp.pen()
-            pen.setWidth(1)
+                pen.setColor(QtGui.QColor(255,255,255))
+            else:
+                pen.setWidth(1)
+                pen.setColor(QtGui.QColor(128,128,128))
             qp.setPen(pen)
+            qp.drawPolygon(obj) 
             
             # qp.drawText(obj.boundingRect(), QtCore.Qt.AlignCenter, name)
             qp.drawText(np.mean(obj), name)
