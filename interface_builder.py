@@ -44,18 +44,33 @@ class Builder(QtGui.QWidget):
         self.but_delete = QtGui.QPushButton('Delete', polygon_tab_container)
         self.but_delete.clicked.connect(self.deleteClick)
         
-        self.wid_name = QtGui.QLineEdit(polygon_tab_container)
-        self.wid_name.textChanged[str].connect(self.updateName)
+        # self.wid_name = QtGui.QLineEdit(polygon_tab_container)
+        # self.wid_name.textChanged[str].connect(self.updateName)
         
         self.wid_tabs = QtGui.QTabWidget(polygon_tab_container)
         layout.addWidget(self.wid_tabs, 0, 1)
+
+        self.wid_edit = QtGui.QTableWidget(1, 1, polygon_tab_container)
+        self.wid_edit.setVerticalHeaderLabels(['Name'])
+        self.wid_edit.cellChanged.connect(self.cellChanged)
+        self.wid_edit.cellPressed.connect(self.cellPressed)
+        orig_press = self.wid_edit.keyPressEvent
+        def new_press(event):
+            if event.key() == 16777223:
+                # remove the point from the underlying polygon, then reload
+                self.wid_draw.objects[self.wid_list.currentItem().text()].remove(self.wid_edit.currentRow()-1)
+                self.wid_draw.active_point = None
+                self.itemClicked(self.wid_list.currentItem())
+            orig_press(event)
+        self.wid_edit.keyPressEvent = new_press
 
         polygon_tab_layout = QtGui.QGridLayout()
         polygon_tab_container.setLayout(polygon_tab_layout)
         self.wid_tabs.addTab(polygon_tab_container, 'Polygons')
         polygon_tab_layout.addWidget(self.wid_list,   0, 0)
-        polygon_tab_layout.addWidget(self.but_delete, 1, 0)
-        polygon_tab_layout.addWidget(self.wid_name,   2, 0)
+        # polygon_tab_layout.addWidget(self.wid_name,   1, 0)
+        polygon_tab_layout.addWidget(self.wid_edit,   1, 0)
+        polygon_tab_layout.addWidget(self.but_delete, 2, 0)
         
         #Widgets for the ROS tab
         ros_tab_container = QtGui.QWidget()
@@ -70,6 +85,7 @@ class Builder(QtGui.QWidget):
 
         self.but_send = QtGui.QPushButton('Send Polygons', ros_tab_container)
         self.but_send.clicked.connect(self.sendPolys)
+        self.but_send.setEnabled(False)
         
         self.wid_frame = QtGui.QLineEdit('/base_link', ros_tab_container)
         self.wid_resolution = QtGui.QLineEdit('1', ros_tab_container)
@@ -99,8 +115,8 @@ class Builder(QtGui.QWidget):
         ros_tab_layout.addWidget(self.offset_z                       )
         ros_tab_layout.addWidget(self.but_send                       )
         
-        layout.addWidget(self.wid_tabs, 0, 1, 1, 2)
-        layout.addWidget(self.wid_draw, 0, 0, 2, 1)
+        layout.addWidget(self.wid_tabs, 0, 1, 2, 2)
+        layout.addWidget(self.wid_draw, 0, 0, 3, 1)
         layout.addWidget(self.but_save, 2, 1)
         layout.addWidget(self.but_load, 2, 2)
         
@@ -108,7 +124,8 @@ class Builder(QtGui.QWidget):
         layout.setColumnMinimumWidth(0, 640)
         
     def save_polygons(self):
-        fname, _ = QtGui.QFileDialog.getSaveFileName(self, 'Save') 
+        fname, _ = QtGui.QFileDialog.getSaveFileName(self, 'Save')
+        if len(fname) == 0: return
         import pickle
         with open(fname, 'w') as f:
             pickle.dump(dict(
@@ -123,6 +140,7 @@ class Builder(QtGui.QWidget):
     def load_polygons(self):
         fname, _ = QtGui.QFileDialog.getOpenFileName(self, 'Load') 
         import pickle
+        if len(fname) == 0: return
         with open(fname, 'r') as f:
             data = pickle.load(f)
             self.wid_draw.objects = data['polygons']
@@ -161,6 +179,7 @@ class Builder(QtGui.QWidget):
             print ps
         
     def startnode(self):
+        self.but_send.setEnabled(True)
         import roslib; roslib.load_manifest('projector_interface')
         import rospy
         from projector_interface.srv import DrawPolygon, ClearPolygons
@@ -182,13 +201,19 @@ class Builder(QtGui.QWidget):
     def deleteClick(self):
         self.wid_draw.removeObject(self.wid_list.currentItem().text())
         self.wid_list.takeItem(self.wid_list.currentRow())
+        self.wid_draw.active_point = None
         
     def polygonAdded(self, name):
         self.wid_list.addItem(name)
         
     def itemClicked(self, item):
+        self.wid_draw.active_point = None
         self.wid_draw.setActive(item.text())
-        self.wid_name.setText(item.text())
+        self.wid_edit.setItem(0, 0, QtGui.QTableWidgetItem(item.text()))
+        points = self.wid_draw.objects[item.text()]
+        self.wid_edit.setRowCount(1+len(points))
+        for px, point in enumerate(points):
+             self.wid_edit.setItem(px+1, 0, QtGui.QTableWidgetItem('(%s, %s)' % (point.x(), point.y())))
         
     def updateName(self, text):
         old_name = self.wid_list.currentItem().text()
@@ -202,7 +227,28 @@ class Builder(QtGui.QWidget):
     def keyReleaseEvent(self, event):
         if event.key() in (16777248, 16777216):
             self.wid_draw.keyReleaseEvent(event)
-        
+    
+    def cellChanged(self, row, col):
+        item = self.wid_edit.item(row, col)
+        if row == 0:
+            self.updateName(item.text())
+        else:
+            try:
+                exec('x,y=%s' % item.text())
+                self.wid_draw.updatePoint(self.wid_list.currentItem().text(), row-1, x, y)
+                self.wid_draw.active_point = QtCore.QPoint(x,y)
+            except Exception, e:
+                print e
+                
+    def cellPressed(self, row, col):
+        item = self.wid_edit.item(row, col)
+        if row > 0:
+            try:
+                exec('x,y=%s' % item.text())
+                self.wid_draw.active_point = QtCore.QPoint(x,y)
+            except Exception, e:
+                print e
+            
         
 class DrawWidget(QtGui.QWidget):
     objects = dict()
@@ -212,6 +258,7 @@ class DrawWidget(QtGui.QWidget):
     active_poly = ''
     snap = False
     axis_align = False
+    active_point = None
     
     def __init__(self):
         super(DrawWidget, self).__init__()
@@ -232,6 +279,12 @@ class DrawWidget(QtGui.QWidget):
             self.removeObject(oldName)
             self.setActive(newName)
 
+    def updatePoint(self, name, point_index, x, y):
+        pt = self.objects[name][point_index]
+        pt.setX(x)
+        pt.setY(y)
+        self.objects[name].replace(point_index, pt)
+
     def removeObject(self, name):
         del self.objects[name]
 
@@ -244,7 +297,7 @@ class DrawWidget(QtGui.QWidget):
     def remove_duplicate_points(self, points):
         newpoints = [points[0]]
 
-        for i in range(1,len(points)):
+        for i in range(len(points)):
             if points[i] != points[i-1]:
                 newpoints.append(points[i]) 
         
@@ -353,7 +406,7 @@ class DrawWidget(QtGui.QWidget):
                 self.snapPos = self.otherSnap
             if not self.snap:
                 qp.drawLine(self.current_poly[-1], cursor)
-        
+                
         pen = qp.pen()
         pen.setColor(QtGui.QColor(128,128,128))
         for name, obj in self.objects.iteritems():
@@ -369,6 +422,13 @@ class DrawWidget(QtGui.QWidget):
             
             # qp.drawText(obj.boundingRect(), QtCore.Qt.AlignCenter, name)
             qp.drawText(np.mean(obj), name)
+        
+        if self.active_point is not None:
+            pen.setColor(QtGui.QColor(  0,255,  0))
+            pen.setWidth(4)
+            qp.setPen(pen)
+            qp.drawEllipse(self.active_point, 2, 2)
+            # qp.drawPoint(self.active_point)
             
         qp.end()
 
