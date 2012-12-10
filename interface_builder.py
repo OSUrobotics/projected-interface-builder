@@ -42,7 +42,8 @@ class Builder(QtGui.QWidget):
         # Widgets for the polygon tab
         polygon_tab_container = QtGui.QWidget()
         self.wid_list = QtGui.QListWidget()
-        self.wid_list.itemClicked.connect(self.itemClicked)
+        # self.wid_list.itemClicked.connect(self.itemClicked)
+        self.wid_list.itemSelectionChanged.connect(self.listItemSelectionChanged)
         
         self.but_delete = QtGui.QPushButton('Delete', polygon_tab_container)
         self.but_delete.clicked.connect(self.deleteClick)
@@ -56,14 +57,15 @@ class Builder(QtGui.QWidget):
         self.wid_edit = QtGui.QTableWidget(1, 1, polygon_tab_container)
         self.wid_edit.setVerticalHeaderLabels(['Name'])
         self.wid_edit.cellChanged.connect(self.cellChanged)
-        self.wid_edit.cellPressed.connect(self.cellPressed)
+        self.wid_edit.itemSelectionChanged.connect(self.itemSelectionChanged)
         orig_press = self.wid_edit.keyPressEvent
         def new_press(event):
-            if event.key() == 16777223:
+            if event.key() == 16777223: # Del
                 # remove the point from the underlying polygon, then reload
-                self.wid_draw.objects[self.wid_list.currentItem().text()].remove(self.wid_edit.currentRow()-1)
-                self.wid_draw.active_point = None
-                self.itemClicked(self.wid_list.currentItem())
+                if self.wid_edit.currentRow() > 0:
+                    self.wid_draw.objects[self.wid_list.currentItem().text()].remove(self.wid_edit.currentRow()-1)
+                    self.wid_draw.active_point = None
+                    self.listItemSelectionChanged()
             orig_press(event)
         self.wid_edit.keyPressEvent = new_press
 
@@ -123,9 +125,8 @@ class Builder(QtGui.QWidget):
         layout.addWidget(self.but_save, 2, 1)
         layout.addWidget(self.but_load, 2, 2)
         
-        
         layout.setColumnMinimumWidth(0, 640)
-        
+                        
     def save_polygons(self):
         fname, _ = QtGui.QFileDialog.getSaveFileName(self, 'Save')
         if len(fname) == 0: return
@@ -209,7 +210,8 @@ class Builder(QtGui.QWidget):
     def polygonAdded(self, name):
         self.wid_list.addItem(name)
         
-    def itemClicked(self, item):
+    def listItemSelectionChanged(self):
+        item = self.wid_list.currentItem()
         self.wid_draw.active_point = None
         self.wid_draw.setActive(item.text())
         self.wid_edit.setItem(0, 0, QtGui.QTableWidgetItem(item.text()))
@@ -243,9 +245,10 @@ class Builder(QtGui.QWidget):
             except Exception, e:
                 print e
                 
-    def cellPressed(self, row, col):
-        item = self.wid_edit.item(row, col)
-        if row > 0:
+    # def cellPressed(self, row, col):
+    def itemSelectionChanged(self):
+        item = self.wid_edit.currentItem()
+        if self.wid_edit.currentRow() > 0:
             try:
                 exec('x,y=%s' % item.text())
                 self.wid_draw.active_point = QtCore.QPoint(x,y)
@@ -382,6 +385,7 @@ class DrawWidget(QtGui.QWidget):
         elif event.key() == 16777216: # Esc
             self.polygon_active = False
             self.current_poly = []
+            self.snap = False
         
     def keyReleaseEvent(self, event):
         if event.key() == 16777248:
