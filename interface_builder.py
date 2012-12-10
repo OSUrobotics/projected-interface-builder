@@ -262,6 +262,8 @@ class DrawWidget(QtGui.QWidget):
     snap = False
     axis_align = False
     active_point = None
+    cursorx, cursory = 0, 0
+    
     
     def __init__(self):
         super(DrawWidget, self).__init__()
@@ -347,7 +349,11 @@ class DrawWidget(QtGui.QWidget):
             else:
                 self.current_poly.extend([self.current_poly[-1],pos])
         elif (event.button() == QtCore.Qt.MouseButton.LeftButton) and (not self.polygon_active):
-            self.current_poly.extend([event.pos(),event.pos()])
+            pt = self.closeToAny(event.pos())
+            if pt is not None:
+                self.current_poly.extend([pt,pt])
+            else:
+                self.current_poly.extend([event.pos(),event.pos()])
             self.cursorx = event.x()
             self.cursory = event.y()
             self.polygon_active = True
@@ -388,8 +394,8 @@ class DrawWidget(QtGui.QWidget):
         pen = qp.pen()
         pen.setColor(QtGui.QColor(255,255,255))
         qp.setPen(pen)
+        cursor = QtCore.QPoint(self.cursorx, self.cursory)
         if self.polygon_active:
-            cursor = QtCore.QPoint(self.cursorx, self.cursory)
             if self.axis_align:
                 cursor = self.snapToAxis(cursor)
                 self.snapPos = cursor
@@ -408,6 +414,13 @@ class DrawWidget(QtGui.QWidget):
                 self.snapPos = self.otherSnap
             if not self.snap:
                 qp.drawLine(self.current_poly[-1], cursor)
+        else:
+            pt = self.closeToAny(cursor)
+            if pt is not None:
+                pen.setColor(QtGui.QColor(128,128,128))
+                pen.setWidth(3)
+                qp.setPen(pen)
+                qp.drawEllipse(pt, 1, 1)
                 
         pen = qp.pen()
         pen.setColor(QtGui.QColor(128,128,128))
