@@ -10,6 +10,9 @@ from matplotlib.nxutils import pnpoly
 import sys
 import numpy as np
 
+from pprint import pprint
+
+
 class Colors:
     WHITE = ColorRGBA(255,255,255,0)
     RED   = ColorRGBA(255,  0,  0,0)
@@ -295,8 +298,7 @@ class DrawWidget(QtGui.QWidget):
         return 'Polygon %s' % len(self.objects)
 
     def remove_duplicate_points(self, points):
-        newpoints = [points[0]]
-
+        newpoints = []
         for i in range(len(points)):
             if points[i] != points[i-1]:
                 newpoints.append(points[i]) 
@@ -369,9 +371,9 @@ class DrawWidget(QtGui.QWidget):
         self.cursory = event.y()
 
     def keyPressEvent(self, event):
-        if event.key() == 16777248:
+        if event.key() == 16777248: # Shift
             self.axis_align = True
-        elif event.key() == 16777216:
+        elif event.key() == 16777216: # Esc
             self.polygon_active = False
             self.current_poly = []
         
