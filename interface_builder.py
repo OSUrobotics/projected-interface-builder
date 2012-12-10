@@ -155,7 +155,7 @@ class Builder(QtGui.QWidget):
             self.offset_z.setText(data['offset_z'])
             
             self.wid_list.clear()
-            for name in data['polygons'].keys():
+            for name in sorted(data['polygons'].keys()):
                 self.polygonAdded(name)
                     
     def sendPolys(self):
@@ -221,6 +221,7 @@ class Builder(QtGui.QWidget):
              self.wid_edit.setItem(px+1, 0, QtGui.QTableWidgetItem('(%s, %s)' % (point.x(), point.y())))
         
     def updateName(self, text):
+        text = text.replace('\\n', '\n')
         old_name = self.wid_list.currentItem().text()
         self.wid_list.currentItem().setText(text)
         self.wid_draw.updateName(old_name, text)
@@ -439,8 +440,8 @@ class DrawWidget(QtGui.QWidget):
             qp.setPen(pen)
             qp.drawPolygon(obj) 
             
-            # qp.drawText(obj.boundingRect(), QtCore.Qt.AlignCenter, name)
-            qp.drawText(np.mean(obj), name)
+            qp.drawText(obj.boundingRect(), QtCore.Qt.AlignCenter, name)
+            # qp.drawText(np.mean(obj), name)
         
         if self.active_point is not None:
             pen.setColor(QtGui.QColor(  0,255,  0))
