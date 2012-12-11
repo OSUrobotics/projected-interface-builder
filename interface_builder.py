@@ -126,7 +126,7 @@ class Builder(QtGui.QWidget):
         layout.addWidget(self.but_load, 2, 2)
         
         layout.setColumnMinimumWidth(0, 640)
-                        
+        
     def save_polygons(self):
         fname, _ = QtGui.QFileDialog.getSaveFileName(self, 'Save')
         if len(fname) == 0: return
@@ -160,11 +160,7 @@ class Builder(QtGui.QWidget):
                     
     def sendPolys(self):
         import rospy
-        from geometry_msgs.msg import Point, PolygonStamped
-
-        header = rospy.Header()
-        header.frame_id = self.wid_frame.text()
-        header.stamp = rospy.Time.now()
+        from projected_interface_builder.convert_utils import QtPolyToROS
         
         res = float(self.wid_resolution.text())
         x = float(self.offset_x.text())
@@ -174,17 +170,15 @@ class Builder(QtGui.QWidget):
         self.polygon_clear_proxy()
 
         for name, qt_poly in self.wid_draw.objects.iteritems():
-            ps = PolygonStamped(header=header)
-            for pt in qt_poly:
-                ps.polygon.points.append(Point(pt.x()*res+x, pt.y()*res+y, z))
+            ps = QtPolyToROS(qt_poly, name, x, y, z, res, self.wid_frame.text())
+            ps.header.stamp = rospy.Time.now()
+            print ps
             self.polygon_proxy(name, True, ps, Colors.WHITE)
             self.polygon_viz.publish(ps)
-            
-            print ps
         
     def startnode(self):
         self.but_send.setEnabled(True)
-        import roslib; roslib.load_manifest('projector_interface')
+        import roslib; roslib.load_manifest('projected_interface_builder')
         import rospy
         from projector_interface.srv import DrawPolygon, ClearPolygons
         from geometry_msgs.msg import Point, PolygonStamped
@@ -192,14 +186,14 @@ class Builder(QtGui.QWidget):
         rospy.init_node('interface_builder', anonymous=True)
         self.but_startros.setEnabled(False)
         
-    	self.polygon_proxy = rospy.ServiceProxy('/draw_polygon', DrawPolygon)
-    	rospy.loginfo("Waiting for polygon service")
-    	self.polygon_proxy.wait_for_service()
-    	rospy.loginfo("polygon service ready")
+        self.polygon_proxy = rospy.ServiceProxy('/draw_polygon', DrawPolygon)
+        rospy.loginfo("Waiting for polygon service")
+        self.polygon_proxy.wait_for_service()
+        rospy.loginfo("polygon service ready")
         rospy.loginfo("Waiting for polygon clear service")
         self.polygon_clear_proxy = rospy.ServiceProxy('/clear_polygons', ClearPolygons)
         rospy.loginfo("polygon clear service ready")
-    	self.polygon_viz = rospy.Publisher('/polygon_viz', PolygonStamped)
+        self.polygon_viz = rospy.Publisher('/polygon_viz', PolygonStamped)
         
         
     def deleteClick(self):
