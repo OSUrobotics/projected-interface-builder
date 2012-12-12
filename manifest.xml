@@ -1,0 +1,19 @@
+<package>
+  <description brief="projector_interface">
+
+     projected_interface_builder
+
+  </description>
+  <author>Daniel Lazewatsky</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/projector_interface</url>
+  <depend package="rospy"/>
+  <depend package="sensor_msgs"/>
+  <depend package="geometry_msgs"/>
+  <depend package="projector_interface"/>
+  <rosdep name="python-scipy"/>
+  <rosdep name="python-qt-bindings"/>
+</package>
+
+
