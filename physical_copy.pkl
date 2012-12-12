@@ -1,15 +1,15 @@
 (dp0
 S'frame_id'
 p1
-V/base_link
+V/table
 p2
 sS'offset_x'
 p3
-V0.0
+V-0.285
 p4
 sS'offset_y'
 p5
-V0.0
+V-0.45
 p6
 sS'offset_z'
 p7
@@ -17,7 +17,7 @@ V0.0
 p8
 sS'resolution'
 p9
-V1
+V0.0011
 p10
 sS'polygons'
 p11
