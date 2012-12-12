@@ -11,7 +11,8 @@ header = '''#!/usr/bin/env python
 # FIXME this package name is just for testing
 import roslib; roslib.load_manifest('projected_interface_builder')
 import rospy
-from projector_interface.srv import GetCursorStats, DrawPolygon, DrawPolygonRequest
+import std_msgs.msg
+from projector_interface.srv import DrawPolygon, DrawPolygonRequest, ClearPolygons
 from geometry_msgs.msg import Point, PolygonStamped
 from projected_interface_builder.colors import *
 
@@ -29,7 +30,7 @@ class ProjectedInterface(object):
         self.polygon_clear_proxy = rospy.ServiceProxy('/clear_polygons', ClearPolygons)
         rospy.loginfo("polygon clear service ready")
     	self.polygon_viz = rospy.Publisher('/polygon_viz', PolygonStamped)
-        rospy.Subscriber('/clicked_object', String, self.dispatch)
+        rospy.Subscriber('/clicked_object', std_msgs.msg.String, self.dispatch)
         
         self.publish_polygons()
     
@@ -49,6 +50,7 @@ class ProjectedInterface(object):
 if __name__ == '__main__':
     rospy.init_node('projected_interface')
     interface = ProjectedInterface()
+    rospy.spin()
 '''
 
 func_template = '''
