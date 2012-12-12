@@ -194,6 +194,8 @@ class Builder(QtGui.QWidget):
         self.polygon_clear_proxy = rospy.ServiceProxy('/clear_polygons', ClearPolygons)
         rospy.loginfo("polygon clear service ready")
         self.polygon_viz = rospy.Publisher('/polygon_viz', PolygonStamped)
+
+        self.but_startros.setText('Node Running...')
         
         
     def deleteClick(self):
