@@ -181,7 +181,7 @@ class Builder(QtGui.QWidget):
                     
     def sendPolys(self):
         import rospy
-        from projected_interface_builder.convert_utils import QtPolyToROS
+        from projected_interface_builder.convert_utils import QtPolyToROS, QtRectToPoly
         
         res = float(self.wid_resolution.text())
         x = float(self.offset_x.text())
@@ -190,11 +190,12 @@ class Builder(QtGui.QWidget):
         
         self.polygon_clear_proxy()
 
-        for name, qt_poly in self.wid_draw.objects.iteritems():
-            ps = QtPolyToROS(qt_poly, name, x, y, z, res, self.wid_frame.text())
+        for uid, poly_info in self.wid_draw.objects.iteritems():
+            ps = QtPolyToROS(poly_info.polygon, uid, x, y, z, res, self.wid_frame.text())
             ps.header.stamp = rospy.Time.now()
+            text_rect = QtPolyToROS(QtRectToPoly(poly_info.text_rect), '', x, y, z, res, self.wid_frame.text())
             print ps
-            self.polygon_proxy(name, True, ps, Colors.WHITE)
+            self.polygon_proxy(uid, poly_info.name, ps, text_rect.polygon, Colors.WHITE)
             self.polygon_viz.publish(ps)
         
     def startnode(self):
