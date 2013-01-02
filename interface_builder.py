@@ -10,8 +10,21 @@ from matplotlib.nxutils import pnpoly
 import sys
 import numpy as np
 
+import datetime, time
+
 from pprint import pprint
 
+class PolygonInfo:
+    def __init__(self, polygon, uid=None, name=''):
+        self.polygon = polygon
+        self.name = name
+        self.id = uid
+        self.text_rect = polygon.boundingRect()
+        if uid is None:
+            self.id = self._gen_id()
+
+    def _gen_id(self):
+        return 'poly%s' % int(time.mktime(datetime.datetime.now().timetuple()))
 
 class Colors:
     WHITE = ColorRGBA(255,255,255,0)
@@ -54,16 +67,16 @@ class Builder(QtGui.QWidget):
         self.wid_tabs = QtGui.QTabWidget(polygon_tab_container)
         layout.addWidget(self.wid_tabs, 0, 1)
 
-        self.wid_edit = QtGui.QTableWidget(1, 1, polygon_tab_container)
-        self.wid_edit.setVerticalHeaderLabels(['Name'])
+        self.wid_edit = QtGui.QTableWidget(2, 1, polygon_tab_container)
+        self.wid_edit.setVerticalHeaderLabels(['Name', 'ID'])
         self.wid_edit.cellChanged.connect(self.cellChanged)
         self.wid_edit.itemSelectionChanged.connect(self.itemSelectionChanged)
         orig_press = self.wid_edit.keyPressEvent
         def new_press(event):
             if event.key() == 16777223: # Del
                 # remove the point from the underlying polygon, then reload
-                if self.wid_edit.currentRow() > 0:
-                    self.wid_draw.objects[self.wid_list.currentItem().text()].remove(self.wid_edit.currentRow()-1)
+                if self.wid_edit.currentRow() > 1:
+                    self.wid_draw.objects[self.wid_list.currentItem().text()].polygon.remove(self.wid_edit.currentRow()-2)
                     self.wid_draw.active_point = None
                     self.listItemSelectionChanged()
             orig_press(event)
@@ -147,7 +160,14 @@ class Builder(QtGui.QWidget):
         if len(fname) == 0: return
         with open(fname, 'r') as f:
             data = pickle.load(f)
-            self.wid_draw.objects = data['polygons']
+            if type(data['polygons'].values()[0]) == PySide.QtGui.QPolygon: #enables loading old data
+                seq = 0
+                for name, poly in data['polygons'].iteritems():
+                    poly_info = PolygonInfo(poly, name=name, uid='poly%s' % seq)
+                    self.wid_draw.objects[poly_info.id] = poly_info
+                    seq += 1
+            else:        
+                self.wid_draw.objects = data['polygons']
             self.wid_frame.setText(data['frame_id'])
             self.wid_resolution.setText(data['resolution'])
             self.offset_x.setText(data['offset_x'])
@@ -155,7 +175,8 @@ class Builder(QtGui.QWidget):
             self.offset_z.setText(data['offset_z'])
             
             self.wid_list.clear()
-            for name in sorted(data['polygons'].keys()):
+
+            for name in sorted(self.wid_draw.objects.keys()):
                 self.polygonAdded(name)
                     
     def sendPolys(self):
@@ -208,19 +229,25 @@ class Builder(QtGui.QWidget):
         
     def listItemSelectionChanged(self):
         item = self.wid_list.currentItem()
+        poly = self.wid_draw.objects[item.text()]
         self.wid_draw.active_point = None
         self.wid_draw.setActive(item.text())
-        self.wid_edit.setItem(0, 0, QtGui.QTableWidgetItem(item.text()))
-        points = self.wid_draw.objects[item.text()]
-        self.wid_edit.setRowCount(1+len(points))
+        self.wid_edit.setItem(0, 0, QtGui.QTableWidgetItem(poly.name))
+        self.wid_edit.setItem(1, 0, QtGui.QTableWidgetItem(poly.id))
+        points = poly.polygon
+        self.wid_edit.setRowCount(2+len(points))
         for px, point in enumerate(points):
-             self.wid_edit.setItem(px+1, 0, QtGui.QTableWidgetItem('(%s, %s)' % (point.x(), point.y())))
+            self.wid_edit.setItem(px+2, 0, QtGui.QTableWidgetItem('(%s, %s)' % (point.x(), point.y())))
         
     def updateName(self, text):
         text = text.replace('\\n', '\n')
-        old_name = self.wid_list.currentItem().text()
+        self.wid_draw.updateName(self.wid_list.currentItem().text(), text)
+
+    def updateId(self, text):
+        old_id = self.wid_list.currentItem().text()
+
+        self.wid_draw.updateId(old_id, text)
         self.wid_list.currentItem().setText(text)
-        self.wid_draw.updateName(old_name, text)
         
     def keyPressEvent(self, event):
         if event.key() in (16777248, 16777216):
@@ -234,10 +261,12 @@ class Builder(QtGui.QWidget):
         item = self.wid_edit.item(row, col)
         if row == 0:
             self.updateName(item.text())
+        elif row == 1:
+            self.updateId(item.text())
         else:
             try:
                 exec('x,y=%s' % item.text())
-                self.wid_draw.updatePoint(self.wid_list.currentItem().text(), row-1, x, y)
+                self.wid_draw.updatePoint(self.wid_list.currentItem().text(), row-2, x, y)
                 self.wid_draw.active_point = QtCore.QPoint(x,y)
             except Exception, e:
                 print e
@@ -245,7 +274,7 @@ class Builder(QtGui.QWidget):
     # def cellPressed(self, row, col):
     def itemSelectionChanged(self):
         item = self.wid_edit.currentItem()
-        if self.wid_edit.currentRow() > 0:
+        if self.wid_edit.currentRow() > 1:
             try:
                 exec('x,y=%s' % item.text())
                 self.wid_draw.active_point = QtCore.QPoint(x,y)
@@ -278,17 +307,21 @@ class DrawWidget(QtGui.QWidget):
         timer.start()
         
 
-    def updateName(self, oldName, newName):
-        if oldName != newName:
-            self.objects[newName] = self.objects[oldName]
-            self.removeObject(oldName)
-            self.setActive(newName)
+    def updateName(self, pid, newName):
+        self.objects[pid].name = newName
 
-    def updatePoint(self, name, point_index, x, y):
-        pt = self.objects[name][point_index]
+    def updateId(self, oldId, newId):
+        if oldId != newId:
+            self.objects[newId] = self.objects[oldId]
+            self.objects[newId].id = newId
+            self.removeObject(oldId)
+        self.setActive(newId)
+
+    def updatePoint(self, uid, point_index, x, y):
+        pt = self.objects[uid].polygon[point_index]
         pt.setX(x)
         pt.setY(y)
-        self.objects[name].replace(point_index, pt)
+        self.objects[uid].polygon.replace(point_index, pt)
 
     def removeObject(self, name):
         del self.objects[name]
@@ -312,8 +345,8 @@ class DrawWidget(QtGui.QWidget):
         return d < 10
 
     def closeToAny(self, p):
-        for poly in self.objects.values():
-            for v in poly:
+        for poly_info in self.objects.values():
+            for v in poly_info.polygon:
                 if self.closeTo(v,p):
                     return v
         return None
@@ -365,9 +398,9 @@ class DrawWidget(QtGui.QWidget):
             self.current_poly.extend([self.current_poly[-1],event.pos()])        
         
         poly = PySide.QtGui.QPolygon.fromList(self.remove_duplicate_points(self.current_poly))
-        poly_name = self.generate_name()
-        self.objects[poly_name] = QtGui.QPolygon(poly)
-        self.polygonAdded.emit(poly_name)
+        poly_container = PolygonInfo(QtGui.QPolygon(poly), name=self.generate_name())
+        self.objects[poly_container.id] = poly_container
+        self.polygonAdded.emit(poly_container.id)
         self.polygon_active = False
         self.current_poly = []        
         self.snap = False
@@ -425,9 +458,10 @@ class DrawWidget(QtGui.QWidget):
                 
         pen = qp.pen()
         pen.setColor(QtGui.QColor(128,128,128))
-        for name, obj in self.objects.iteritems():
+        for uid, poly_info in self.objects.iteritems():
             # active = pnpoly(cursor[0], cursor[1], [(p.x(), p.y()) for p in obj])
-            if self.active_poly == name:
+            obj = poly_info.polygon
+            if self.active_poly == poly_info.id:
                 pen.setWidth(3)
                 pen.setColor(QtGui.QColor(255,255,255))
             else:
@@ -436,7 +470,7 @@ class DrawWidget(QtGui.QWidget):
             qp.setPen(pen)
             qp.drawPolygon(obj) 
             
-            qp.drawText(obj.boundingRect(), QtCore.Qt.AlignCenter, name)
+            qp.drawText(poly_info.text_rect, QtCore.Qt.AlignCenter, poly_info.name)
             # qp.drawText(np.mean(obj), name)
         
         if self.active_point is not None:
