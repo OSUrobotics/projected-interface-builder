@@ -14,6 +14,8 @@ import datetime, time
 
 from pprint import pprint
 
+FONT = QtGui.QFont('Decorative', 30)
+
 class PolygonInfo:
     def __init__(self, polygon, uid=None, name=''):
         self.polygon = polygon
@@ -24,14 +26,14 @@ class PolygonInfo:
         if uid is None:
             self.id = self._gen_id()
 
-    def update_font_box(self, font_metrics=QtGui.QFontMetrics(QtGui.QFont())):
+    def update_font_box(self, font_metrics=QtGui.QFontMetrics(FONT)):
         bounding_rect = font_metrics.boundingRect(self.name)
         lines = self.name.split('\n')
         nlines = len(lines)
         longest_line = lines[np.argmax([len(l) for l in lines])]
         
-        bounding_rect.setWidth(font_metrics.width(longest_line)+5)
-        bounding_rect.setHeight((bounding_rect.height()+5)*nlines)
+        bounding_rect.setWidth(font_metrics.width(longest_line)*1.25)
+        bounding_rect.setHeight((font_metrics.height()+5)*nlines)
         bounding_rect.moveCenter(self.text_rect.center())
         self.text_rect = bounding_rect
 
@@ -504,6 +506,7 @@ class DrawWidget(QtGui.QWidget):
                 pen.setColor(QtGui.QColor(128,128,128))
             qp.setPen(pen)
             qp.drawPolygon(obj) 
+            qp.setFont(FONT)
             qp.drawText(poly_info.text_rect, QtCore.Qt.AlignCenter, poly_info.name)
             # qp.drawText(np.mean(obj), name)
         
