@@ -305,6 +305,7 @@ class DrawWidget(QtGui.QWidget):
     axis_align = False
     active_point = None
     cursorx, cursory = 0, 0
+    text_move = False
     
     
     def __init__(self):
@@ -404,10 +405,17 @@ class DrawWidget(QtGui.QWidget):
             self.cursory = event.y()
             self.polygon_active = True
 
+    def do_text_click(self, event):
+        if self.text_move:
+            self.text_move = False
+        else:
+            self.text_move = True
+            self.text_rect_orig = self.objects[self.active_poly].text_rect.translated(QtCore.QPoint())
+
     def mousePressEvent(self, event):
         self.setMouseTracking(True)
         if self.active_poly and self.objects[self.active_poly].in_text_box((self.cursorx, self.cursory)):
-            print 'in text box'
+            self.do_text_click(event)
         else:
             self.do_polygon_click(event)
         
@@ -428,11 +436,16 @@ class DrawWidget(QtGui.QWidget):
     def mouseMoveEvent(self, event):
         self.cursorx = event.x()
         self.cursory = event.y()
+        if self.text_move:
+            self.objects[self.active_poly].text_rect.moveCenter(QtCore.QPoint(self.cursorx, self.cursory))
 
     def keyPressEvent(self, event):
         if event.key() == 16777248: # Shift
             self.axis_align = True
         elif event.key() == 16777216: # Esc
+            if self.text_move:
+                self.text_move = False
+                self.objects[self.active_poly].text_rect = self.text_rect_orig
             self.polygon_active = False
             self.current_poly = []
             self.snap = False
