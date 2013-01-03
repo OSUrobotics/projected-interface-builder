@@ -134,6 +134,8 @@ class Builder(QtGui.QWidget):
         self.offset_y = QtGui.QLineEdit('0.0', ros_tab_container)
         self.offset_z = QtGui.QLineEdit('0.0', ros_tab_container)
                 
+        self.wid_resolution.textChanged[str].connect(self.resolutionChanged)
+
         ros_tab_layout.addWidget(self.but_startros                   )
         ros_tab_layout.addWidget(QtGui.QLabel('Interface frame id')  )
         ros_tab_layout.addWidget(self.wid_frame                      )
@@ -233,6 +235,12 @@ class Builder(QtGui.QWidget):
 
         self.but_startros.setText('Node Running...')
         
+    def resolutionChanged(self, text):
+        try:
+            FONT.setPointSize(30-float(text)*12000)
+            print FONT.pointSize()
+        except Exception:
+            pass
         
     def deleteClick(self):
         self.wid_draw.removeObject(self.wid_list.currentItem().text())
