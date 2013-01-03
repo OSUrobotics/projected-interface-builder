@@ -20,11 +20,32 @@ class PolygonInfo:
         self.name = name
         self.id = uid
         self.text_rect = polygon.boundingRect()
+        self.update_font_box()
         if uid is None:
             self.id = self._gen_id()
 
+    def update_font_box(self, font_metrics=QtGui.QFontMetrics(QtGui.QFont())):
+        bounding_rect = font_metrics.boundingRect(self.name)
+        lines = self.name.split('\n')
+        nlines = len(lines)
+        longest_line = lines[np.argmax([len(l) for l in lines])]
+        
+        bounding_rect.setWidth(font_metrics.width(longest_line)+5)
+        bounding_rect.setHeight((bounding_rect.height()+5)*nlines)
+        bounding_rect.moveCenter(self.text_rect.center())
+        self.text_rect = bounding_rect
+
     def _gen_id(self):
         return 'poly%s' % int(time.mktime(datetime.datetime.now().timetuple()))
+        
+    def in_poly(self, pt):
+        return pnpoly(pt.x(), pt.y(), [(p.x(), p.y()) for p in self.polygon])
+        
+    def in_text_box(self, pt):
+        return pt[0] > self.text_rect.left() \
+           and pt[0] < self.text_rect.right() \
+           and pt[1] < self.text_rect.bottom() \
+           and pt[1] > self.text_rect.top()
 
 class Colors:
     WHITE = ColorRGBA(255,255,255,0)
@@ -110,16 +131,7 @@ class Builder(QtGui.QWidget):
         self.offset_x = QtGui.QLineEdit('0.0', ros_tab_container)
         self.offset_y = QtGui.QLineEdit('0.0', ros_tab_container)
         self.offset_z = QtGui.QLineEdit('0.0', ros_tab_container)
-        
-        # ros_tab_layout.addWidget(self.but_startros,                    0, 0)
-        # ros_tab_layout.addWidget(QtGui.QLabel('Interface frame id'),   1, 0)
-        # ros_tab_layout.addWidget(self.wid_frame,                       2, 0)
-        # ros_tab_layout.addWidget(QtGui.QLabel('Resolution (m/pixel)'), 3, 0)
-        # ros_tab_layout.addWidget(self.wid_resolution,                  4, 0)
-        # ros_tab_layout.addWidget(QtGui.QLabel('Z'),                    5, 0)
-        # ros_tab_layout.addWidget(self.wid_z,                           6, 0)
-        # ros_tab_layout.addWidget(self.but_send,                        7, 0)
-        
+                
         ros_tab_layout.addWidget(self.but_startros                   )
         ros_tab_layout.addWidget(QtGui.QLabel('Interface frame id')  )
         ros_tab_layout.addWidget(self.wid_frame                      )
@@ -310,6 +322,7 @@ class DrawWidget(QtGui.QWidget):
 
     def updateName(self, pid, newName):
         self.objects[pid].name = newName
+        self.objects[pid].update_font_box()
 
     def updateId(self, oldId, newId):
         if oldId != newId:
@@ -360,8 +373,7 @@ class DrawWidget(QtGui.QWidget):
         else:
             return QtCore.QPoint(pt.x(), self.current_poly[-1].y())
 
-    def mousePressEvent(self, event):
-        self.setMouseTracking(True)
+    def do_polygon_click(self, event):
         if self.snap and not self.otherSnap:
             self.mouseDoubleClickEvent(QtGui.QMouseEvent(
                 event.type(),
@@ -391,7 +403,14 @@ class DrawWidget(QtGui.QWidget):
             self.cursorx = event.x()
             self.cursory = event.y()
             self.polygon_active = True
-               
+
+    def mousePressEvent(self, event):
+        self.setMouseTracking(True)
+        if self.active_poly and self.objects[self.active_poly].in_text_box((self.cursorx, self.cursory)):
+            print 'in text box'
+        else:
+            self.do_polygon_click(event)
+        
     def mouseDoubleClickEvent(self, event):
         if len(self.current_poly) == 1:
             self.current_poly[0][1] = (event.x(), event.y())
@@ -463,6 +482,8 @@ class DrawWidget(QtGui.QWidget):
             # active = pnpoly(cursor[0], cursor[1], [(p.x(), p.y()) for p in obj])
             obj = poly_info.polygon
             if self.active_poly == poly_info.id:
+                if poly_info.in_text_box((self.cursorx, self.cursory)):
+                    qp.drawRect(poly_info.text_rect)
                 pen.setWidth(3)
                 pen.setColor(QtGui.QColor(255,255,255))
             else:
@@ -470,7 +491,6 @@ class DrawWidget(QtGui.QWidget):
                 pen.setColor(QtGui.QColor(128,128,128))
             qp.setPen(pen)
             qp.drawPolygon(obj) 
-            
             qp.drawText(poly_info.text_rect, QtCore.Qt.AlignCenter, poly_info.name)
             # qp.drawText(np.mean(obj), name)
         
