@@ -47,7 +47,7 @@ class Predictor(object):
     def predict(self, seq):
         words = self.words
         for i, letters in enumerate(self.seq_to_letters(seq)):
-            words = filter(lambda w: w[i].upper() in letters, words)
+            words = filter(lambda w: w[i].upper() in letters.upper(), words)
         words = sorted([w.strip() for w in words], key=self.word_score, reverse=True)
         if self.prune:
             words = filter(lambda w: self.word_score(w) > 0, words)
