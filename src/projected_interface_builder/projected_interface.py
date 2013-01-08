@@ -44,13 +44,9 @@ class ProjectedInterface(object):
         
     def dispatch(self, msg):
         if self.dispatch_lock.acquire(blocking=False) is True:
-            self.click_sub.unregister()
             uid = msg.data
-            rospy.loginfo(uid)
             if uid in self.callbacks:
                 self.callbacks[uid].__call__(self.polygons[uid])
-            self.dispatch_rate.sleep()
-            self.subscribe_to_clicks()
             self.dispatch_lock.release()
         
     def register_callback(self, uid, func):

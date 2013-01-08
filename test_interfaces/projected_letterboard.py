@@ -29,8 +29,22 @@ class LetterboardInterface(ProjectedInterface):
 		for box in self.letter_boxes:
 			self.register_callback(box, self.letter_cb)
 
+		for box in self.choice_boxes:
+			self.register_callback(box.id, self.choice_cb)
+			box.name = ''
+
+		self.polygons['sent'].name = ''
+
 	def letter_cb(self, poly):
 		self.output_words(self.predictor.predict_incremental(poly.id))
+
+	def choice_cb(self, poly):
+		self.predictor.choose_word(poly.name)
+		self.polygons['sent'].name += ' %s' % poly.name
+		self.publish_polygon(self.polygons['sent'])
+		for box in self.choice_boxes:
+			box.name = ''
+			self.publish_polygon(box)
 
 	def output_words(self, words):
 		self.current_words = words
