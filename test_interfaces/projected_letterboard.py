@@ -57,3 +57,4 @@ if __name__ == '__main__':
 	interf = LetterboardInterface('/home/lazewatskyd/ros-pkgs/projected_interface_builder/physical_copy_choices_new.pkl')
 	interf.start()
 	rospy.spin()
+	interf.maybe_write_changes()

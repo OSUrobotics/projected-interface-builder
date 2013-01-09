@@ -11,12 +11,18 @@ from projected_interface_builder import colors
 
 from threading import RLock
 
+from dynamic_reconfigure.server import Server
+from projected_interface_builder.cfg import InterfaceConfig
+
 class ProjectedInterface(object):
     callbacks = dict()
     dispatch_lock = RLock()
+    config_inited = False
+    save_changes = False
     def __init__(self, polygon_file, dispatch_rate=0.1):
         with open(polygon_file, 'r') as f:
             data = pickle.load(f)
+        self.polygon_file = polygon_file
         self.res = float(data['resolution'])
         self.x = float(data['offset_x'])
         self.y = float(data['offset_y'])
@@ -36,8 +42,30 @@ class ProjectedInterface(object):
     	self.polygon_viz = rospy.Publisher('/polygon_viz', PolygonStamped)
         self.subscribe_to_clicks()
         self.dispatch_rate = rospy.Rate(self.dispatch_rate)
+        reconfig_srv = Server(InterfaceConfig, self.reconfig_cb)
 
         self.publish_polygons()
+
+    def reconfig_cb(self, config, level):
+        # ignore the first config we get
+        # import pdb; pdb.set_trace()
+        if self.config_inited:
+            self.frame_id = config['frame_id']
+            self.res = config['res']
+            self.x = config['offset_x']
+            self.y = config['offset_y']
+            self.z = config['offset_z']
+            self.save_changes = config['commit']
+        else:
+            config['groups']['parameters']['frame_id'] = self.frame_id
+            config['res'] = self.res
+            config['offset_x'] = self.x
+            config['offset_y'] = self.y
+            config['offset_z'] = self.z
+            self.config_inited = True
+        self.publish_polygons()
+
+        return config
 
     def subscribe_to_clicks(self):
         self.click_sub = rospy.Subscriber('/clicked_object', std_msgs.msg.String, self.dispatch, queue_size=1)
@@ -62,3 +90,16 @@ class ProjectedInterface(object):
         self.polygon_clear_proxy()
         for uid, polygon in self.polygons.iteritems():
             self.publish_polygon(polygon)
+
+    def maybe_write_changes(self):
+        if self.save_changes:
+            with open(self.polygon_file, 'w') as f:
+                data = dict()
+                data['resolution'] = self.res
+                data['offset_x'] = self.x
+                data['offset_y'] = self.y
+                data['offset_z'] = self.z
+                data['frame_id'] = self.frame_id
+                data['polygons'] = self.polygons
+                pickle.dump(data, f)
+                rospy.loginfo('Wrote changes to %s' % self.polygon_file)
