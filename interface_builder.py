@@ -144,10 +144,10 @@ class Builder(QtGui.QWidget):
             else:        
                 self.wid_draw.objects = data['polygons']
             self.wid_frame.setText(data['frame_id'])
-            self.wid_resolution.setText(data['resolution'])
-            self.offset_x.setText(data['offset_x'])
-            self.offset_y.setText(data['offset_y'])
-            self.offset_z.setText(data['offset_z'])
+            self.wid_resolution.setText(str(data['resolution']))
+            self.offset_x.setText(str(data['offset_x']))
+            self.offset_y.setText(str(data['offset_y']))
+            self.offset_z.setText(str(data['offset_z']))
             
             self.wid_list.clear()
 
