@@ -12,6 +12,7 @@ import sys
 import numpy as np
 
 from projected_interface_builder.data_structures import PolygonInfo
+from projected_interface_builder import colors
 
 FONT = QtGui.QFont('Decorative', 30)
 
@@ -170,7 +171,7 @@ class Builder(QtGui.QWidget):
             ps.header.stamp = rospy.Time.now()
             text_rect = QtPolyToROS(QtRectToPoly(poly_info.text_rect), '', x, y, z, res, self.wid_frame.text())
             print ps
-            self.polygon_proxy(uid, poly_info.name, ps, text_rect.polygon, Colors.WHITE)
+            self.polygon_proxy(uid, poly_info.name, ps, text_rect.polygon, colors.WHITE)
             self.polygon_viz.publish(ps)
         
     def startnode(self):
