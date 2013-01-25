@@ -60,6 +60,14 @@ class Predictor(object):
     def choose_word(self, word):
         self.sent.append(word)
         self.seq = []
+
+    def delete_last_word(self):
+        if len(self.sent) > 0:
+            del self.sent[-1]
+
+    def delete_last_letter(self):
+        if len(self.seq) > 0:
+            del self.seq[-1]
         
 if __name__ == '__main__':
     pred = Predictor(nummap)

@@ -33,6 +33,9 @@ class LetterboardInterface(ProjectedInterface):
 			self.register_callback(box.id, self.choice_cb)
 			box.name = ''
 
+		self.register_callback('delword'  , self.delword)
+		self.register_callback('delletter', self.delletter)
+
 		self.polygons['sent'].name = ''
 
 	def letter_cb(self, poly):
@@ -52,9 +55,31 @@ class LetterboardInterface(ProjectedInterface):
 			poly.name = word
 			self.publish_polygon(poly)
 
+	def delword(self, poly):
+		self.predictor.delete_last_word()
+		self.polygons['sent'].name = ' '.join(self.predictor.sent[1:]) # get rid of the leading period
+		self.publish_polygon(self.polygons['sent'])
+
+	def delletter(self, poly):
+		self.predictor.delete_last_letter()
+
+		for box in self.choice_boxes:
+			box.name = ''
+
+		if len(self.predictor.seq) > 0:
+			self.output_words(self.predictor.predict(self.predictor.seq))
+
+
+	def maybe_write_changes(self):
+		self.polygons['sent'].name = ''
+		for box in self.choice_boxes:
+			box.name = ''
+
+		super(LetterboardInterface, self).maybe_write_changes()
+
 if __name__ == '__main__':
-	rospy.init_node('test_if')
-	interf = LetterboardInterface('/home/lazewatskyd/ros-pkgs/projected_interface_builder/physical_copy_choices_new.pkl')
+	rospy.init_node('letterboard_interface')
+	interf = LetterboardInterface('/home/lazewatskyd/ros-pkgs/projected_interface_builder/physical_copy_choices_extended.pkl')
 	interf.start()
 	rospy.spin()
 	interf.maybe_write_changes()
