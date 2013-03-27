@@ -1,5 +1,5 @@
 <launch>
-	<arg name="wall_cam_name" default="wall_cam"/>
+    <arg name="camera" default="camera"/>
     <node name="ar_pose" pkg="ar_pose" type="ar_single" respawn="false" output="screen">
         <param name="marker_pattern" type="string" value="$(find ar_pose)/data/4x4/4x4_1.patt"/>
         <param name="marker_width" type="double" value="130.0"/>
@@ -9,7 +9,7 @@
         <param name="use_history" type="bool" value="true"/>
 		<param name="marker_frame" type="string" value="/table_marker"/>
 
-        <remap from="usb_cam/image_raw" to="$(arg wall_cam_name)/rgb/image_rect"/>
-        <remap from="usb_cam/camera_info" to="$(arg wall_cam_name)/rgb/camera_info"/>
+        <remap from="usb_cam/image_raw" to="$(arg camera)/image_rect"/>
+        <remap from="usb_cam/camera_info" to="$(arg camera)/camera_info"/>
     </node>
 </launch>
