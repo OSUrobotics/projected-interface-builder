@@ -27,15 +27,21 @@ class TVInterface(ProjectedInterface):
         self.register_callback('chup'   , self.send_code)
         self.register_callback('chdown' , self.send_code)
 
+        self.hideupdown()
+
+    def hideupdown(self):
         self.set_hidden('chup')
         self.set_hidden('chdown')
+
 
     def onoff(self, poly):
         self.code_pub.publish('onoff_samsung')
         if not self.tvon:
             self.clear_hidden()
             self.publish_polygons()
-        self.tvon = True
+            self.tvon = True
+        else:
+            self.hideupdown()
 
     def send_code(self, poly):
         if poly.id in self.codebook:

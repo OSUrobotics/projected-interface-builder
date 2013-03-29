@@ -5,11 +5,11 @@ V/table_marker
 p2
 sS'offset_x'
 p3
-V0.1
+V0.2
 p4
 sS'offset_y'
 p5
-V-0.6
+V-0.4
 p6
 sS'offset_z'
 p7
@@ -17,7 +17,7 @@ V0.0
 p8
 sS'resolution'
 p9
-V0.003
+V0.0025
 p10
 sS'polygons'
 p11
