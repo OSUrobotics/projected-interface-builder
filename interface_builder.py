@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import roslib; roslib.load_manifest('projected_interface_builder')
+import rospy
 import PySide
 from PySide import QtGui, QtCore
 from PySide.QtGui import QPalette
@@ -33,7 +34,7 @@ class Builder(QtGui.QWidget):
         self.but_load = QtGui.QPushButton('Load', self)
         
         self.but_save.clicked.connect(self.save_polygons)
-        self.but_load.clicked.connect(self.load_polygons)
+        self.but_load.clicked.connect(self.load_polygons_click)
         
         # Widgets for the polygon tab
         polygon_tab_container = QtGui.QWidget()
@@ -130,8 +131,11 @@ class Builder(QtGui.QWidget):
                 offset_z   = self.offset_z.text()
             ), f)
             
-    def load_polygons(self):
-        fname, _ = QtGui.QFileDialog.getOpenFileName(self, 'Load') 
+    def load_polygons_click(self):
+        fname, _ = QtGui.QFileDialog.getOpenFileName(self, 'Load')
+        self.load_polygons(fname)
+
+    def load_polygons(self, fname):
         import pickle
         if len(fname) == 0: return
         with open(fname, 'r') as f:
@@ -156,7 +160,6 @@ class Builder(QtGui.QWidget):
                 self.polygonAdded(name)
                     
     def sendPolys(self):
-        import rospy
         from projected_interface_builder.convert_utils import QtPolyToROS, QtRectToPoly, toMarker
         from visualization_msgs.msg import MarkerArray
         
@@ -179,7 +182,6 @@ class Builder(QtGui.QWidget):
         
     def startnode(self):
         self.but_send.setEnabled(True)
-        import rospy
         from projector_interface.srv import DrawPolygon, ClearPolygons
         from geometry_msgs.msg import Point, PolygonStamped
         from visualization_msgs.msg import MarkerArray
@@ -493,4 +495,6 @@ class DrawWidget(QtGui.QWidget):
 if __name__ == '__main__':
     app = PySide.QtGui.QApplication(sys.argv)
     gui = Builder()
+    if len(rospy.myargv()) == 2:
+        gui.load_polygons(rospy.myargv()[1])
     sys.exit(app.exec_())
