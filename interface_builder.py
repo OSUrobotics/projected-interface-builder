@@ -157,7 +157,8 @@ class Builder(QtGui.QWidget):
                     
     def sendPolys(self):
         import rospy
-        from projected_interface_builder.convert_utils import QtPolyToROS, QtRectToPoly
+        from projected_interface_builder.convert_utils import QtPolyToROS, QtRectToPoly, toMarker
+        from visualization_msgs.msg import MarkerArray
         
         res = float(self.wid_resolution.text())
         x = float(self.offset_x.text())
@@ -166,19 +167,22 @@ class Builder(QtGui.QWidget):
         
         self.polygon_clear_proxy()
 
+        markers = MarkerArray()
         for uid, poly_info in self.wid_draw.objects.iteritems():
             ps = QtPolyToROS(poly_info.polygon, uid, x, y, z, res, self.wid_frame.text())
             ps.header.stamp = rospy.Time.now()
             text_rect = QtPolyToROS(QtRectToPoly(poly_info.text_rect), '', x, y, z, res, self.wid_frame.text())
             print ps
             self.polygon_proxy(uid, poly_info.name, ps, text_rect.polygon, colors.WHITE)
-            self.polygon_viz.publish(ps)
+            markers.markers.append(toMarker(ps, np.int32(hash(uid))))
+        self.polygon_viz.publish(markers)
         
     def startnode(self):
         self.but_send.setEnabled(True)
         import rospy
         from projector_interface.srv import DrawPolygon, ClearPolygons
         from geometry_msgs.msg import Point, PolygonStamped
+        from visualization_msgs.msg import MarkerArray
 
         rospy.init_node('interface_builder', anonymous=True)
         self.but_startros.setEnabled(False)
@@ -190,7 +194,7 @@ class Builder(QtGui.QWidget):
         rospy.loginfo("Waiting for polygon clear service")
         self.polygon_clear_proxy = rospy.ServiceProxy('/clear_polygons', ClearPolygons)
         rospy.loginfo("polygon clear service ready")
-        self.polygon_viz = rospy.Publisher('/polygon_viz', PolygonStamped)
+        self.polygon_viz = rospy.Publisher('/polygon_viz', MarkerArray)
 
         self.but_startros.setText('Node Running...')
         
