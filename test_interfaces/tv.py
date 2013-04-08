@@ -42,6 +42,8 @@ class TVInterface(ProjectedInterface):
             self.tvon = True
         else:
             self.hideupdown()
+            self.publish_polygons()
+            self.tvon = False
 
     def send_code(self, poly):
         if poly.id in self.codebook:
