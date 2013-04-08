@@ -19,6 +19,7 @@ class ProjectedInterface(object):
     dispatch_lock = RLock()
     config_inited = False
     save_changes = False
+    hidden = set()
     def __init__(self, polygon_file, dispatch_rate=0.1):
         with open(polygon_file, 'r') as f:
             data = pickle.load(f)
@@ -86,10 +87,21 @@ class ProjectedInterface(object):
         text_rect = QtPolyToROS(QtRectToPoly(polygon.text_rect), '', self.x, self.y, self.z, self.res, self.frame_id)
         self.polygon_proxy(polygon.id, polygon.name, ps, text_rect.polygon, colors.WHITE)
             
+    def set_hidden(self, polygon):
+        self.hidden.add(polygon)
+
+    def set_nothidden(self, polygon):
+        if polygon in self.hidden:
+            self.hidden.remove(polygon)
+
+    def clear_hidden(self):
+        self.hidden.clear()
+
     def publish_polygons(self):
         self.polygon_clear_proxy()
         for uid, polygon in self.polygons.iteritems():
-            self.publish_polygon(polygon)
+            if uid not in self.hidden:
+                self.publish_polygon(polygon)
 
     def maybe_write_changes(self):
         if self.save_changes:
