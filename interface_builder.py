@@ -203,7 +203,6 @@ class Builder(QtGui.QWidget):
     def resolutionChanged(self, text):
         try:
             FONT.setPointSize(30-float(text)*12000)
-            print FONT.pointSize()
         except Exception:
             pass
         
@@ -281,7 +280,9 @@ class DrawWidget(QtGui.QWidget):
     active_point = None
     cursorx, cursory = 0, 0
     text_move = False
-    
+    scale = 1.0
+    trans = QtCore.QPoint()
+    drag_start = False
     
     def __init__(self):
         super(DrawWidget, self).__init__()
@@ -389,10 +390,17 @@ class DrawWidget(QtGui.QWidget):
 
     def mousePressEvent(self, event):
         self.setMouseTracking(True)
-        if self.active_poly and self.objects[self.active_poly].in_text_box((self.cursorx, self.cursory)):
+        if event.button() == QtCore.Qt.MouseButton.MiddleButton:
+            # subtracting out self.trans makes sure we take into account 
+            # the previous translation rather than just using the delta
+            self.drag_start = (event.pos()/self.scale - self.trans)
+        elif self.active_poly and self.objects[self.active_poly].in_text_box((self.cursorx, self.cursory)):
             self.do_text_click(event)
         else:
             self.do_polygon_click(event)
+
+    def mouseReleaseEvent(self, event):
+        self.drag_start = False
         
     def mouseDoubleClickEvent(self, event):
         if len(self.current_poly) == 1:
@@ -411,7 +419,11 @@ class DrawWidget(QtGui.QWidget):
     def mouseMoveEvent(self, event):
         self.cursorx = event.x()
         self.cursory = event.y()
-        if self.text_move:
+        if event.buttons() & QtCore.Qt.MouseButton.MiddleButton:
+            if self.drag_start:
+                self.trans = (event.pos()/self.scale - self.drag_start)
+
+        elif self.text_move:
             self.objects[self.active_poly].text_rect.moveCenter(QtCore.QPoint(self.cursorx, self.cursory))
 
     def keyPressEvent(self, event):
@@ -424,6 +436,18 @@ class DrawWidget(QtGui.QWidget):
             self.polygon_active = False
             self.current_poly = []
             self.snap = False
+
+    def wheelEvent(self, event):
+        mul = 1.0
+        if event.delta() < 0:
+            mul *= 0.9
+        if event.delta() > 0:
+            mul *= 1.1
+
+        self.scale *= mul
+        pos = event.pos()
+        self.trans = -(pos*self.scale - pos)
+        
         
     def keyReleaseEvent(self, event):
         if event.key() == 16777248:
@@ -432,6 +456,8 @@ class DrawWidget(QtGui.QWidget):
     def paintEvent(self, e):
         qp = QtGui.QPainter()
         qp.begin(self)
+        qp.scale(self.scale, self.scale)
+        qp.translate(self.trans)
         qp.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         pen = qp.pen()
         pen.setColor(QtGui.QColor(255,255,255))
