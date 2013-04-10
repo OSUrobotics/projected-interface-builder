@@ -20,6 +20,18 @@ from projected_interface_builder import colors
 
 FONT = QtGui.QFont('Decorative', 30)
 
+class BuilderWindow(QtGui.QMainWindow):
+    def __init__(self):
+        super(BuilderWindow, self).__init__()
+        self.setWindowTitle('Interface Builder')
+        self.builder = Builder()
+        self.setCentralWidget(self.builder)
+        self.statusBar()
+        self.show()        
+
+    def load_polygons(self, path):
+        self.builder.load_polygons(path)
+
 class Builder(QtGui.QWidget):
     def __init__(self):
         super(Builder, self).__init__()
@@ -32,6 +44,7 @@ class Builder(QtGui.QWidget):
         self.setLayout(layout)
         self.wid_draw = DrawWidget()
         self.wid_draw.polygonAdded.connect(self.polygonAdded)
+        self.wid_draw.mouseMoved.connect(self.mouseMoved)
         
         self.but_save = QtGui.QPushButton('Save', self)
         self.but_load = QtGui.QPushButton('Load', self)
@@ -217,6 +230,9 @@ class Builder(QtGui.QWidget):
     def polygonAdded(self, name):
         self.wid_list.addItem(name)
         
+    def mouseMoved(self, location):
+        self.window().statusBar().showMessage('x=%s, y=%s' % (location.x(), location.y()))
+
     def listItemSelectionChanged(self):
         item = self.wid_list.currentItem()
         poly = self.wid_draw.objects[item.text()]
@@ -277,6 +293,7 @@ class DrawWidget(QtGui.QWidget):
     polygon_active = False
     current_poly = []
     polygonAdded = QtCore.Signal(str)
+    mouseMoved = QtCore.Signal(QtCore.QPoint)
     active_poly = ''
     snap = False
     axis_align = False
@@ -421,6 +438,7 @@ class DrawWidget(QtGui.QWidget):
     def mouseMoveEvent(self, event):
         self.cursorx = event.x()
         self.cursory = event.y()
+        self.mouseMoved.emit(event.pos() - self.trans)
         if event.buttons() & QtCore.Qt.MouseButton.MiddleButton:
             if self.drag_start:
                 self.trans = (event.pos()/self.scale - self.drag_start)
@@ -556,7 +574,7 @@ class DrawWidget(QtGui.QWidget):
 
 if __name__ == '__main__':
     app = PySide.QtGui.QApplication(sys.argv)
-    gui = Builder()
+    gui = BuilderWindow()
     if len(rospy.myargv()) == 2:
         gui.load_polygons(rospy.myargv()[1])
     sys.exit(app.exec_())
