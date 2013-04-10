@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+from __future__ import division
+
 import roslib; roslib.load_manifest('projected_interface_builder')
 import rospy
 import PySide
@@ -14,6 +16,7 @@ import numpy as np
 
 from projected_interface_builder.data_structures import PolygonInfo
 from projected_interface_builder import colors
+
 
 FONT = QtGui.QFont('Decorative', 30)
 
@@ -296,7 +299,6 @@ class DrawWidget(QtGui.QWidget):
         timer.timeout.connect(self.update)
         timer.start()
         
-
     def updateName(self, pid, newName):
         self.objects[pid].name = newName
         self.objects[pid].update_font_box()
@@ -453,6 +455,27 @@ class DrawWidget(QtGui.QWidget):
         if event.key() == 16777248:
             self.axis_align = False
 
+    def grid_lines(self, rect):
+        '''
+        Draw a grid inside @rect
+        '''
+        lines = []
+        step = 20
+        def round_close(n):
+            return int(step*round(n/step))
+
+        top = rect.top()
+        bottom = rect.bottom()
+        left = rect.left()
+        right = rect.right()
+        for inc in range(left, right, step):
+            inc = round_close(inc)
+            lines.append(QtCore.QLine(QtCore.QPoint(inc, top), QtCore.QPoint(inc, bottom)))
+        for inc in range(top, bottom, step):
+            inc = round_close(inc)
+            lines.append(QtCore.QLine(QtCore.QPoint(left, inc), QtCore.QPoint(right, inc)))
+        return lines
+
     def paintEvent(self, e):
         qp = QtGui.QPainter()
         qp.begin(self)
@@ -460,15 +483,27 @@ class DrawWidget(QtGui.QWidget):
         qp.translate(self.trans)
         qp.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         pen = qp.pen()
+
+        # Draw a grid
+        pen.setColor(QtGui.QColor(15,15,15))
+        qp.setPen(pen)
+        xform, invertible = qp.transform().inverted()
+        qp.drawLines(self.grid_lines(xform.mapRect(self.rect())))
+
+        
         pen.setColor(QtGui.QColor(255,255,255))
         qp.setPen(pen)
         cursor = QtCore.QPoint(self.cursorx, self.cursory)
+
+        # Draw the polygon currently being drawn
         if self.polygon_active:
+            # Figure out where to draw the line connected to the cursor
             if self.axis_align:
                 cursor = self.snapToAxis(cursor)
                 self.snapPos = cursor
             qp.drawLines(self.current_poly)
             self.snap = False
+            # Draw the rest of the polygon
             for p in self.current_poly:
                 if self.closeTo(cursor, p):
                     qp.drawLine(self.current_poly[-1], p)
@@ -487,13 +522,13 @@ class DrawWidget(QtGui.QWidget):
             if pt is not None:
                 pen.setColor(QtGui.QColor(128,128,128))
                 pen.setWidth(3)
-                qp.setPen(pen)
+                # qp.setPen(pen)
                 qp.drawEllipse(pt, 1, 1)
                 
+        # Draw all defined polygons
         pen = qp.pen()
         pen.setColor(QtGui.QColor(128,128,128))
         for uid, poly_info in self.objects.iteritems():
-            # active = pnpoly(cursor[0], cursor[1], [(p.x(), p.y()) for p in obj])
             obj = poly_info.polygon
             if self.active_poly == poly_info.id:
                 if poly_info.in_text_box((self.cursorx, self.cursory)):
@@ -509,6 +544,7 @@ class DrawWidget(QtGui.QWidget):
             qp.drawText(poly_info.text_rect, QtCore.Qt.AlignCenter, poly_info.name)
             # qp.drawText(np.mean(obj), name)
         
+        # Hilight the active point
         if self.active_point is not None:
             pen.setColor(QtGui.QColor(  0,255,  0))
             pen.setWidth(4)
