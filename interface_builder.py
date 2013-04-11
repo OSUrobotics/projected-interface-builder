@@ -288,7 +288,7 @@ class Builder(QtGui.QWidget):
                 print e
             
         
-class DrawWidget(QtGui.QWidget):
+class DrawWidget(QtGui.QGraphicsView):
     objects = dict()
     polygon_active = False
     current_poly = []
@@ -303,17 +303,18 @@ class DrawWidget(QtGui.QWidget):
     scale = 1.0
     trans = QtCore.QPoint()
     drag_start = False
+    otherSnap = None
     
     def __init__(self):
         super(DrawWidget, self).__init__()
+        self.scene = QtGui.QGraphicsScene()
+        self.setScene(self.scene)
+        self.setBackgroundBrush(QtGui.QColor(0,0,0))
         self.setGeometry(0, 480, 640, 400)
-        self.setAutoFillBackground(True)
-        palette = self.palette()
-        palette.setColor(QtGui.QPalette.Window, QtGui.QColor(0,0,0))
-        self.setPalette(palette)
+
         timer = PySide.QtCore.QTimer(self)
         timer.setInterval(50)
-        timer.timeout.connect(self.update)
+        timer.timeout.connect(self.viewport().update)
         timer.start()
         
     def updateName(self, pid, newName):
@@ -379,6 +380,7 @@ class DrawWidget(QtGui.QWidget):
                 event.modifiers(),
             ))
             return
+        # import pdb; pdb.set_trace()
         if (event.button() == QtCore.Qt.MouseButton.LeftButton) and (self.polygon_active):
             if self.axis_align:
                 pos = self.snapPos
@@ -495,15 +497,21 @@ class DrawWidget(QtGui.QWidget):
         return lines
 
     def paintEvent(self, e):
-        qp = QtGui.QPainter()
-        qp.begin(self)
+        qp = QtGui.QPainter(self.viewport())
+
+        # Having a paintEvent() defined seems to cause the super's 
+        # drawBackground() not to get called. Is this the right fix?
+        # I don't know
+        self.drawBackground(qp, self.rect())
+
+        # qp.begin(self)
         qp.scale(self.scale, self.scale)
         qp.translate(self.trans)
         qp.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         pen = qp.pen()
 
         # Draw a grid
-        pen.setColor(QtGui.QColor(15,15,15))
+        pen.setColor(QtGui.QColor(30,30,30))
         qp.setPen(pen)
         xform, invertible = qp.transform().inverted()
         qp.drawLines(self.grid_lines(xform.mapRect(self.rect())))
@@ -521,7 +529,7 @@ class DrawWidget(QtGui.QWidget):
                 self.snapPos = cursor
             qp.drawLines(self.current_poly)
             self.snap = False
-            # Draw the rest of the polygon
+            
             for p in self.current_poly:
                 if self.closeTo(cursor, p):
                     qp.drawLine(self.current_poly[-1], p)
