@@ -160,7 +160,8 @@ class Builder(QtGui.QWidget):
                 seq = 0
                 for name, poly in data['polygons'].iteritems():
                     poly_info = PolygonInfo(poly, name=name, uid='poly%s' % seq)
-                    self.wid_draw.objects[poly_info.id] = poly_info
+                    # self.wid_draw.objects[poly_info.id] = poly_info
+                    self.wid_draw.add_polygon(poly_info)
                     seq += 1
             else:        
                 self.wid_draw.objects = data['polygons']
@@ -304,19 +305,29 @@ class DrawWidget(QtGui.QGraphicsView):
     trans = QtCore.QPoint()
     drag_start = False
     otherSnap = None
-    
+    last_click = None
+    POLYGON_PEN = QtGui.QPen(QtGui.QColor(128,128,128))
+    # ACTIVE_PEN  = QtGui.QPen(color=QtGui.QColor(128,128,128), width=3)
+
     def __init__(self):
         super(DrawWidget, self).__init__()
         self.scene = QtGui.QGraphicsScene()
+        self.scene.setBackgroundBrush(QtGui.QColor(0,0,0))
         self.setScene(self.scene)
-        self.setBackgroundBrush(QtGui.QColor(0,0,0))
-        self.setGeometry(0, 480, 640, 400)
 
-        timer = PySide.QtCore.QTimer(self)
-        timer.setInterval(50)
-        timer.timeout.connect(self.viewport().update)
-        timer.start()
+        # self.scene.setForegroundBrush(QtGui.QColor(255,255,255))
+        # self.setGeometry(0, 480, 640, 400)
+        # self.setSceneRect(-1000, -1000,1000,1000)
+        # timer = PySide.QtCore.QTimer(self)
+        # timer.setInterval(50)
+        # timer.timeout.connect(self.viewport().update)
+        # timer.start()
         
+    
+    def add_polygon(self, poly_info):
+        poly_info.set_item(self.scene.addPolygon(poly_info.polygon, pen=self.POLYGON_PEN))
+        self.objects[poly_info.id] = poly_info
+
     def updateName(self, pid, newName):
         self.objects[pid].name = newName
         self.objects[pid].update_font_box()
@@ -329,6 +340,7 @@ class DrawWidget(QtGui.QGraphicsView):
         self.setActive(newId)
 
     def updatePoint(self, uid, point_index, x, y):
+        # TODO update the item's poly as well
         pt = self.objects[uid].polygon[point_index]
         pt.setX(x)
         pt.setY(y)
@@ -380,7 +392,6 @@ class DrawWidget(QtGui.QGraphicsView):
                 event.modifiers(),
             ))
             return
-        # import pdb; pdb.set_trace()
         if (event.button() == QtCore.Qt.MouseButton.LeftButton) and (self.polygon_active):
             if self.axis_align:
                 pos = self.snapPos
@@ -388,19 +399,62 @@ class DrawWidget(QtGui.QGraphicsView):
                 pos = self.otherSnap
             else:
                 pos = event.pos()
-            if len(self.current_poly) == 1:
-                self.current_poly[0][1] = (pos.x(), pos.y())
+            # If there are no lines yet (second click)
+            if not self.current_poly:
+                self.current_poly.append(QtGui.QGraphicsLineItem(QtCore.QLine(self.last_click, pos)))
             else:
-                self.current_poly.extend([self.current_poly[-1],pos])
+                self.current_poly.append(QtGui.QGraphicsLineItem(QtCore.QLine(self.current_poly[-1].line().p2().toPoint(),pos)))
+            self.reset_active_line(pos)
         elif (event.button() == QtCore.Qt.MouseButton.LeftButton) and (not self.polygon_active):
             pt = self.closeToAny(event.pos())
             if pt is not None:
-                self.current_poly.extend([pt,pt])
+                self.last_click = pt
+
             else:
-                self.current_poly.extend([event.pos(),event.pos()])
+                self.last_click = event.pos()
+            self.reset_active_line(self.last_click)
+
             self.cursorx = event.x()
             self.cursory = event.y()
             self.polygon_active = True
+        self.update_active_polygon()
+
+    def reset_active_line(self, pos):
+        self.active_line = QtGui.QGraphicsLineItem(QtCore.QLine(pos, pos))
+        self.active_line.setPen(self.POLYGON_PEN)
+        self.scene.addItem(self.active_line)
+
+    def update_active_polygon(self):
+        cursor = QtCore.QPoint(self.cursorx, self.cursory)
+        if self.axis_align:
+            cursor = self.snapToAxis(cursor)
+            self.snapPos = cursor
+        if self.current_poly:
+            self.current_poly[-1].setPen(self.POLYGON_PEN)
+            self.scene.addItem(self.current_poly[-1])
+        self.snap = False
+        
+        # for p in self.current_poly:
+        #     if self.closeTo(cursor, p):
+        #         self.scene.addLine(self.current_poly[-1], p)
+        #         self.snap = True
+        #         self.snapPos = p
+        #         break
+        # self.otherSnap = self.closeToAny(cursor) if not self.snap else None
+        # if self.otherSnap is not None:
+        #     self.scene.addLine(self.current_poly[-1], self.otherSnap)
+        #     self.snap = True
+        #     self.snapPos = self.otherSnap
+        # if not self.snap:
+        #     self.scene.addLine(self.current_poly[-1], cursor)
+        # else:
+        #     pt = self.closeToAny(cursor)
+        #     if pt is not None:
+        #         pen.setColor(QtGui.QColor(128,128,128))
+        #         pen.setWidth(3)
+        #         # qp.setPen(pen)
+        #         self.scene.addEllipse(pt.x(), pt.y(), 1, 1)
+
 
     def do_text_click(self, event):
         if self.text_move:
@@ -419,23 +473,24 @@ class DrawWidget(QtGui.QGraphicsView):
             self.do_text_click(event)
         else:
             self.do_polygon_click(event)
+        self.last_click = event.pos()
 
     def mouseReleaseEvent(self, event):
         self.drag_start = False
         
     def mouseDoubleClickEvent(self, event):
-        if len(self.current_poly) == 1:
-            self.current_poly[0][1] = (event.x(), event.y())
-        else:
-            self.current_poly.extend([self.current_poly[-1],event.pos()])        
+        # add a line to the double-click pos
+        self.current_poly.append(QtGui.QGraphicsLineItem(QtCore.QLine(self.current_poly[-1].line().p2().toPoint(),event.pos())))
         
-        poly = PySide.QtGui.QPolygon.fromList(self.remove_duplicate_points(self.current_poly))
+        # polygon-ize the line list
+        poly = PySide.QtGui.QPolygon.fromList([l.line().p1().toPoint() for l in self.current_poly])
         poly_container = PolygonInfo(QtGui.QPolygon(poly), name=self.generate_name())
-        self.objects[poly_container.id] = poly_container
+        self.add_polygon(poly_container)
         self.polygonAdded.emit(poly_container.id)
         self.polygon_active = False
         self.current_poly = []        
         self.snap = False
+        self.last_click = None
                 
     def mouseMoveEvent(self, event):
         self.cursorx = event.x()
@@ -443,15 +498,21 @@ class DrawWidget(QtGui.QGraphicsView):
         self.mouseMoved.emit(event.pos() - self.trans)
         if event.buttons() & QtCore.Qt.MouseButton.MiddleButton:
             if self.drag_start:
-                self.trans = (event.pos()/self.scale - self.drag_start)
+                trans = (event.pos()/self.scale - self.drag_start)
+                self.translate(trans.x(), trans.y())
 
         elif self.text_move:
             self.objects[self.active_poly].text_rect.moveCenter(QtCore.QPoint(self.cursorx, self.cursory))
+        if self.polygon_active:
+            # Note: line() returns a *copy* of the backing line, so changing it doesn't do anything
+            line = self.active_line.line()
+            line.setP2(event.pos())
+            self.active_line.setLine(line)
 
     def keyPressEvent(self, event):
-        if event.key() == 16777248: # Shift
+        if event.key() == QtCore.Qt.Key_Shift:
             self.axis_align = True
-        elif event.key() == 16777216: # Esc
+        elif event.key() == QtCore.Qt.Key.Key_Escape:
             if self.text_move:
                 self.text_move = False
                 self.objects[self.active_poly].text_rect = self.text_rect_orig
@@ -475,6 +536,11 @@ class DrawWidget(QtGui.QGraphicsView):
         if event.key() == 16777248:
             self.axis_align = False
 
+    def remove_active_poly_items(self):
+        for line in self.active_poly:
+            self.scene.removeItem(line)
+        self.scene.removeItem(self.active_line)
+
     def grid_lines(self, rect):
         '''
         Draw a grid inside @rect
@@ -490,95 +556,12 @@ class DrawWidget(QtGui.QGraphicsView):
         right = rect.right()
         for inc in range(left, right, step):
             inc = round_close(inc)
-            lines.append(QtCore.QLine(QtCore.QPoint(inc, top), QtCore.QPoint(inc, bottom)))
+            # lines.append(QtCore.QLine(QtCore.QPoint(inc, top), QtCore.QPoint(inc, bottom)))
+            # self.scene.addLine()
         for inc in range(top, bottom, step):
             inc = round_close(inc)
-            lines.append(QtCore.QLine(QtCore.QPoint(left, inc), QtCore.QPoint(right, inc)))
+            lines.append(QtGui.QGraphicsLineItem(QtCore.QLine(QtCore.QPoint(left, inc), QtCore.QPoint(right, inc))))
         return lines
-
-    def paintEvent(self, e):
-        qp = QtGui.QPainter(self.viewport())
-
-        # Having a paintEvent() defined seems to cause the super's 
-        # drawBackground() not to get called. Is this the right fix?
-        # I don't know
-        self.drawBackground(qp, self.rect())
-
-        # qp.begin(self)
-        qp.scale(self.scale, self.scale)
-        qp.translate(self.trans)
-        qp.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-        pen = qp.pen()
-
-        # Draw a grid
-        pen.setColor(QtGui.QColor(30,30,30))
-        qp.setPen(pen)
-        xform, invertible = qp.transform().inverted()
-        qp.drawLines(self.grid_lines(xform.mapRect(self.rect())))
-
-        
-        pen.setColor(QtGui.QColor(255,255,255))
-        qp.setPen(pen)
-        cursor = QtCore.QPoint(self.cursorx, self.cursory)
-
-        # Draw the polygon currently being drawn
-        if self.polygon_active:
-            # Figure out where to draw the line connected to the cursor
-            if self.axis_align:
-                cursor = self.snapToAxis(cursor)
-                self.snapPos = cursor
-            qp.drawLines(self.current_poly)
-            self.snap = False
-            
-            for p in self.current_poly:
-                if self.closeTo(cursor, p):
-                    qp.drawLine(self.current_poly[-1], p)
-                    self.snap = True
-                    self.snapPos = p
-                    break
-            self.otherSnap = self.closeToAny(cursor) if not self.snap else None
-            if self.otherSnap is not None:
-                qp.drawLine(self.current_poly[-1], self.otherSnap)
-                self.snap = True
-                self.snapPos = self.otherSnap
-            if not self.snap:
-                qp.drawLine(self.current_poly[-1], cursor)
-        else:
-            pt = self.closeToAny(cursor)
-            if pt is not None:
-                pen.setColor(QtGui.QColor(128,128,128))
-                pen.setWidth(3)
-                # qp.setPen(pen)
-                qp.drawEllipse(pt, 1, 1)
-                
-        # Draw all defined polygons
-        pen = qp.pen()
-        pen.setColor(QtGui.QColor(128,128,128))
-        for uid, poly_info in self.objects.iteritems():
-            obj = poly_info.polygon
-            if self.active_poly == poly_info.id:
-                if poly_info.in_text_box((self.cursorx, self.cursory)):
-                    qp.drawRect(poly_info.text_rect)
-                pen.setWidth(3)
-                pen.setColor(QtGui.QColor(255,255,255))
-            else:
-                pen.setWidth(1)
-                pen.setColor(QtGui.QColor(128,128,128))
-            qp.setPen(pen)
-            qp.drawPolygon(obj) 
-            qp.setFont(FONT)
-            qp.drawText(poly_info.text_rect, QtCore.Qt.AlignCenter, poly_info.name)
-            # qp.drawText(np.mean(obj), name)
-        
-        # Hilight the active point
-        if self.active_point is not None:
-            pen.setColor(QtGui.QColor(  0,255,  0))
-            pen.setWidth(4)
-            qp.setPen(pen)
-            qp.drawEllipse(self.active_point, 2, 2)
-            # qp.drawPoint(self.active_point)
-            
-        qp.end()
 
 if __name__ == '__main__':
     app = PySide.QtGui.QApplication(sys.argv)

@@ -5,6 +5,7 @@ import numpy as np
 FONT = QtGui.QFont('Decorative', 30)
 
 class PolygonInfo:
+    gfx_item = None
     def __init__(self, polygon, uid=None, name=''):
         self.polygon = polygon
         self.name = name
@@ -24,6 +25,12 @@ class PolygonInfo:
         bounding_rect.setHeight((font_metrics.height()+5)*nlines)
         bounding_rect.moveCenter(self.text_rect.center())
         self.text_rect = bounding_rect
+
+    def set_item(self, item):
+        self.gfx_item = item
+
+    def clear_item(self):
+        self.gfx_item = None
 
     def _gen_id(self):
         return 'poly%s' % int(time.mktime(datetime.datetime.now().timetuple()))
