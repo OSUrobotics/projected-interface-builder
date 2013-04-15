@@ -307,6 +307,7 @@ class DrawWidget(QtGui.QGraphicsView):
     otherSnap = None
     last_click = None
     POLYGON_PEN = QtGui.QPen(QtGui.QColor(128,128,128))
+    GRID_PEN    = QtGui.QPen(QtGui.QColor(25,25,25))
     # ACTIVE_PEN  = QtGui.QPen(color=QtGui.QColor(128,128,128), width=3)
 
     def __init__(self):
@@ -314,6 +315,7 @@ class DrawWidget(QtGui.QGraphicsView):
         self.scene = QtGui.QGraphicsScene()
         self.scene.setBackgroundBrush(QtGui.QColor(0,0,0))
         self.setScene(self.scene)
+        self.draw_grid_lines()
 
         # self.scene.setForegroundBrush(QtGui.QColor(255,255,255))
         # self.setGeometry(0, 480, 640, 400)
@@ -404,7 +406,7 @@ class DrawWidget(QtGui.QGraphicsView):
             if not self.current_poly:
                 self.current_poly.append(QtGui.QGraphicsLineItem(QtCore.QLineF(self.last_click, pos)))
             else:
-                self.current_poly.append(QtGui.QGraphicsLineItem(QtCore.QLineF(self.current_poly[-1].line().p2().toPoint(),pos)))
+                self.current_poly.append(QtGui.QGraphicsLineItem(QtCore.QLineF(self.current_poly[-1].line().p2(),pos)))
             self.reset_active_line(pos)
         elif (event.button() == QtCore.Qt.MouseButton.LeftButton) and (not self.polygon_active):
             pt = self.closeToAny(cursor)
@@ -543,7 +545,7 @@ class DrawWidget(QtGui.QGraphicsView):
             self.scene.removeItem(line)
         self.scene.removeItem(self.active_line)
 
-    def grid_lines(self, rect):
+    def draw_grid_lines(self):
         '''
         Draw a grid inside @rect
         '''
@@ -552,18 +554,16 @@ class DrawWidget(QtGui.QGraphicsView):
         def round_close(n):
             return int(step*round(n/step))
 
-        top = rect.top()
-        bottom = rect.bottom()
-        left = rect.left()
-        right = rect.right()
+        top    = -1000
+        bottom =  1000
+        left   = -1000
+        right  =  1000
         for inc in range(left, right, step):
             inc = round_close(inc)
-            # lines.append(QtCore.QLine(QtCore.QPoint(inc, top), QtCore.QPoint(inc, bottom)))
-            # self.scene.addLine()
+            self.scene.addLine(QtCore.QLine(QtCore.QPoint(inc, top), QtCore.QPoint(inc, bottom)), self.GRID_PEN)
         for inc in range(top, bottom, step):
             inc = round_close(inc)
-            lines.append(QtGui.QGraphicsLineItem(QtCore.QLine(QtCore.QPoint(left, inc), QtCore.QPoint(right, inc))))
-        return lines
+            self.scene.addLine(QtCore.QLine(QtCore.QPoint(left, inc), QtCore.QPoint(right, inc)), self.GRID_PEN)
 
 if __name__ == '__main__':
     app = PySide.QtGui.QApplication(sys.argv)
