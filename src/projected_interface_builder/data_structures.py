@@ -6,6 +6,7 @@ FONT = QtGui.QFont('Decorative', 30)
 
 class PolygonInfo:
     gfx_item = None
+    text_item = None
     def __init__(self, polygon, uid=None, name=''):
         self.polygon = polygon
         self.name = name
@@ -31,6 +32,9 @@ class PolygonInfo:
 
     def clear_item(self):
         self.gfx_item = None
+
+    def set_text_item(self, item):
+        self.text_item = item
 
     def _gen_id(self):
         return 'poly%s' % int(time.mktime(datetime.datetime.now().timetuple()))
