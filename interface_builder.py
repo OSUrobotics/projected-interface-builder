@@ -373,6 +373,15 @@ class DrawWidget(QtGui.QGraphicsView):
                     return v
         return None
 
+    def closeToCurrent(self, p):
+        for line in self.current_poly[:-1]:
+            p1 = line.line().p1()
+            if self.closeTo(p1, p): return p1
+            p2 = line.line().p2()
+            if self.closeTo(p2, p): return p2
+
+        return None
+
     def snapToAxis(self, pt):
         xdist = abs(pt.x() - self.current_poly[-1].line().p1().x())
         ydist = abs(pt.y() - self.current_poly[-1].line().p1().y())
@@ -410,7 +419,6 @@ class DrawWidget(QtGui.QGraphicsView):
             self.cursorx = cursor.x()
             self.cursory = cursor.y()
             self.polygon_active = True
-        # self.update_active_polygon()
 
     def reset_active_line(self, pos):
         self.active_line = QtGui.QGraphicsLineItem(QtCore.QLineF(pos, pos))
@@ -419,39 +427,13 @@ class DrawWidget(QtGui.QGraphicsView):
         self.current_poly.append(self.active_line)
 
     def get_line_endpoint(self, pos):
-
         if self.axis_align:
             return self.snapToAxis(pos)
-            # cursor = self.snapToAxis(cursor)
-            # self.snapPos = cursor
-        else:
-            return pos
-        # if self.current_poly:
-        #     self.current_poly[-1].setPen(self.POLYGON_PEN)
-        #     # self.scene.addItem(self.current_poly[-1])
-        # self.snap = False
-        
-        # for p in self.current_poly:
-        #     if self.closeTo(cursor, p):
-        #         self.scene.addLine(self.current_poly[-1], p)
-        #         self.snap = True
-        #         self.snapPos = p
-        #         break
-        # self.otherSnap = self.closeToAny(cursor) if not self.snap else None
-        # if self.otherSnap is not None:
-        #     self.scene.addLine(self.current_poly[-1], self.otherSnap)
-        #     self.snap = True
-        #     self.snapPos = self.otherSnap
-        # if not self.snap:
-        #     self.scene.addLine(self.current_poly[-1], cursor)
-        # else:
-        #     pt = self.closeToAny(cursor)
-        #     if pt is not None:
-        #         pen.setColor(QtGui.QColor(128,128,128))
-        #         pen.setWidth(3)
-        #         # qp.setPen(pen)
-        #         self.scene.addEllipse(pt.x(), pt.y(), 1, 1)
-
+        cta = self.closeToAny(pos)
+        if cta: return cta
+        cts = self.closeToCurrent(pos)
+        if cts: return cts
+        return pos
 
     def do_text_click(self, event):
         if self.text_move:
@@ -513,7 +495,7 @@ class DrawWidget(QtGui.QGraphicsView):
                 self.objects[self.active_poly].text_rect = self.text_rect_orig
             self.polygon_active = False
             self.remove_active_poly_items()
-            self.current_poly = []
+            
             self.snap = False
 
     def wheelEvent(self, event):
@@ -535,6 +517,7 @@ class DrawWidget(QtGui.QGraphicsView):
     def remove_active_poly_items(self):
         for line in self.current_poly:
             line.scene().removeItem(line)
+            self.current_poly = []
 
     def draw_grid_lines(self):
         '''
