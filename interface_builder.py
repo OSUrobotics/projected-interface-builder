@@ -392,7 +392,10 @@ class DrawWidget(QtGui.QGraphicsView):
                 event.modifiers(),
             ))
             return
+
+        # Create the line connecting to the cursor
         if (event.button() == QtCore.Qt.MouseButton.LeftButton) and (self.polygon_active):
+            # If this isn't the first point in the polygon
             if self.axis_align:
                 pos = self.snapPos
             elif self.otherSnap is not None:
@@ -400,12 +403,13 @@ class DrawWidget(QtGui.QGraphicsView):
             else:
                 pos = cursor
             # If there are no lines yet (second click)
-            if not self.current_poly:
-                self.current_poly.append(QtGui.QGraphicsLineItem(QtCore.QLineF(self.last_click, pos)))
-            else:
-                self.current_poly.append(QtGui.QGraphicsLineItem(QtCore.QLineF(self.current_poly[-1].line().p2(),pos)))
+            # if not self.current_poly:
+            #     self.current_poly.append(QtGui.QGraphicsLineItem(QtCore.QLineF(self.last_click, pos)))
+            # else:
+            #     self.current_poly.append(QtGui.QGraphicsLineItem(QtCore.QLineF(self.current_poly[-1].line().p2(),pos)))
             self.reset_active_line(pos)
         elif (event.button() == QtCore.Qt.MouseButton.LeftButton) and (not self.polygon_active):
+            # If this is the first point in the polygon
             pt = self.closeToAny(cursor)
             if pt is not None:
                 self.last_click = pt
@@ -417,14 +421,15 @@ class DrawWidget(QtGui.QGraphicsView):
             self.cursorx = cursor.x()
             self.cursory = cursor.y()
             self.polygon_active = True
-        self.update_active_polygon()
+        # self.update_active_polygon()
 
     def reset_active_line(self, pos):
         self.active_line = QtGui.QGraphicsLineItem(QtCore.QLineF(pos, pos))
         self.active_line.setPen(self.POLYGON_PEN)
         self.scene.addItem(self.active_line)
+        self.current_poly.append(self.active_line)
 
-    def update_active_polygon(self):
+    def update_snap_pos(self):
         cursor = QtCore.QPoint(self.cursorx, self.cursory)
         if self.axis_align:
             cursor = self.snapToAxis(cursor)
@@ -434,17 +439,17 @@ class DrawWidget(QtGui.QGraphicsView):
             self.scene.addItem(self.current_poly[-1])
         self.snap = False
         
-        # for p in self.current_poly:
-        #     if self.closeTo(cursor, p):
-        #         self.scene.addLine(self.current_poly[-1], p)
-        #         self.snap = True
-        #         self.snapPos = p
-        #         break
-        # self.otherSnap = self.closeToAny(cursor) if not self.snap else None
-        # if self.otherSnap is not None:
-        #     self.scene.addLine(self.current_poly[-1], self.otherSnap)
-        #     self.snap = True
-        #     self.snapPos = self.otherSnap
+        for p in self.current_poly:
+            if self.closeTo(cursor, p):
+                self.scene.addLine(self.current_poly[-1], p)
+                self.snap = True
+                self.snapPos = p
+                break
+        self.otherSnap = self.closeToAny(cursor) if not self.snap else None
+        if self.otherSnap is not None:
+            self.scene.addLine(self.current_poly[-1], self.otherSnap)
+            self.snap = True
+            self.snapPos = self.otherSnap
         # if not self.snap:
         #     self.scene.addLine(self.current_poly[-1], cursor)
         # else:
@@ -480,7 +485,7 @@ class DrawWidget(QtGui.QGraphicsView):
         
     def mouseDoubleClickEvent(self, event):
         # add a line to the double-click pos
-        self.current_poly.append(QtGui.QGraphicsLineItem(QtCore.QLineF(self.current_poly[-1].line().p2(),self.mapToScene(event.pos()))))
+        # self.current_poly.append(QtGui.QGraphicsLineItem(QtCore.QLineF(self.current_poly[-1].line().p2(),self.mapToScene(event.pos()))))
         
         # polygon-ize the line list
         poly = PySide.QtGui.QPolygon.fromList([l.line().p1().toPoint() for l in self.current_poly])
@@ -488,7 +493,7 @@ class DrawWidget(QtGui.QGraphicsView):
         self.add_polygon(poly_container)
         self.polygonAdded.emit(poly_container.id)
         self.polygon_active = False
-        self.current_poly = []        
+        self.remove_active_poly_items()
         self.snap = False
         self.last_click = None
                 
@@ -518,6 +523,7 @@ class DrawWidget(QtGui.QGraphicsView):
                 self.text_move = False
                 self.objects[self.active_poly].text_rect = self.text_rect_orig
             self.polygon_active = False
+            self.remove_active_poly_items()
             self.current_poly = []
             self.snap = False
 
@@ -534,13 +540,12 @@ class DrawWidget(QtGui.QGraphicsView):
         
         
     def keyReleaseEvent(self, event):
-        if event.key() == 16777248:
+        if event.key() == QtCore.Qt.Key_Shift:
             self.axis_align = False
 
     def remove_active_poly_items(self):
-        for line in self.active_poly:
-            self.scene.removeItem(line)
-        self.scene.removeItem(self.active_line)
+        for line in self.current_poly:
+            line.scene().removeItem(line)
 
     def draw_grid_lines(self):
         '''
