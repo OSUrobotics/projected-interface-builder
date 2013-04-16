@@ -287,8 +287,7 @@ class Builder(QtGui.QWidget):
                 self.wid_draw.active_point = QtCore.QPoint(x,y)
             except Exception, e:
                 print e
-            
-        
+                 
 class DrawWidget(QtGui.QGraphicsView):
     objects = dict()
     polygon_active = False
@@ -316,18 +315,13 @@ class DrawWidget(QtGui.QGraphicsView):
         self.scene.setBackgroundBrush(QtGui.QColor(0,0,0))
         self.setScene(self.scene)
         self.draw_grid_lines()
-
-        # self.scene.setForegroundBrush(QtGui.QColor(255,255,255))
-        # self.setGeometry(0, 480, 640, 400)
-        # self.setSceneRect(-1000, -1000,1000,1000)
-        # timer = PySide.QtCore.QTimer(self)
-        # timer.setInterval(50)
-        # timer.timeout.connect(self.viewport().update)
-        # timer.start()
-        
     
     def add_polygon(self, poly_info):
         poly_info.set_item(self.scene.addPolygon(poly_info.polygon, pen=self.POLYGON_PEN))
+        text_item = self.scene.addText(poly_info.name)
+        text_item.setPos(poly_info.text_rect.topLeft())
+        text_item.setFont(FONT)
+        poly_info.set_text_item(text_item)
         self.objects[poly_info.id] = poly_info
 
     def updateName(self, pid, newName):
@@ -349,7 +343,10 @@ class DrawWidget(QtGui.QGraphicsView):
         self.objects[uid].polygon.replace(point_index, pt)
 
     def removeObject(self, name):
-        del self.objects[name]
+        obj = self.objects[name]
+        self.scene.removeItem(obj.gfx_item)
+        self.scene.removeItem(obj.text_item)
+        del obj
 
     def setActive(self, name):
         self.active_poly = name
