@@ -315,6 +315,7 @@ class DrawWidget(QtGui.QGraphicsView):
     otherSnap = None
     last_click = None
     snap_to_grid = False
+    grid_step = 20
     POLYGON_PEN      = QtGui.QPen(QtGui.QColor(128,128,128))
     GRID_PEN         = QtGui.QPen(QtGui.QColor( 25, 25, 25))
     # ACTIVE_POINT_PEN = QtGui.QPen(QtGui.QColor(  0,255,  0), 4)
@@ -428,11 +429,10 @@ class DrawWidget(QtGui.QGraphicsView):
                 event.modifiers(),
             ))
             return
-
         # Create the line connecting to the cursor
         if (event.button() == QtCore.Qt.MouseButton.LeftButton) and (self.polygon_active):
             # If this isn't the first point in the polygon
-            self.reset_active_line(self.get_line_endpoint(cursor))
+            self.reset_active_line(self.get_line_endpoint(cursor, event.modifiers()))
         elif (event.button() == QtCore.Qt.MouseButton.LeftButton) and (not self.polygon_active):
             # If this is the first point in the polygon
             pt = self.closeToAny(cursor)
@@ -453,13 +453,21 @@ class DrawWidget(QtGui.QGraphicsView):
         self.scene.addItem(self.active_line)
         self.current_poly.append(self.active_line)
 
-    def get_line_endpoint(self, pos):
-        if self.axis_align:
+    def get_line_endpoint(self, pos, modifiers):
+        if modifiers == (QtCore.Qt.ShiftModifier | QtCore.Qt.ControlModifier):
             return self.snapToAxis(pos)
+
         cta = self.closeToAny(pos)
         if cta: return cta
         cts = self.closeToCurrent(pos)
         if cts: return cts
+        if modifiers & QtCore.Qt.ShiftModifier:
+            x,y = pos.toTuple()
+            x = int(self.grid_step*round(x/self.grid_step))
+            y = int(self.grid_step*round(y/self.grid_step))
+            grid_pt = QtCore.QPoint(x,y)
+            if self.closeTo(pos, grid_pt):
+                return grid_pt
         return pos
 
     def do_text_click(self, event):
@@ -510,14 +518,14 @@ class DrawWidget(QtGui.QGraphicsView):
         if self.polygon_active:
             # Note: line() returns a *copy* of the backing line, so changing it doesn't do anything
             line = self.active_line.line()
-            line.setP2(self.get_line_endpoint(pos))
+            line.setP2(self.get_line_endpoint(pos, event.modifiers()))
             self.active_line.setLine(line)
 
     def keyPressEvent(self, event):
-        if event.key() == QtCore.Qt.Key_Shift:
+        if event.key() == QtCore.Qt.Key_Control:
             self.axis_align = True
             self.modeUpdate.emit('|')
-        elif event.key() == QtCore.Qt.Key.Key_Escape:
+        if event.key() == QtCore.Qt.Key.Key_Escape:
             if self.text_move:
                 self.text_move = False
                 self.objects[self.active_poly].text_rect = self.text_rect_orig
@@ -525,7 +533,7 @@ class DrawWidget(QtGui.QGraphicsView):
             self.remove_active_poly_items()
             
             self.snap = False
-        elif event.key() ==  PySide.QtCore.Qt.Key.Key_Control:
+        elif event.key() ==  PySide.QtCore.Qt.Key.Key_Shift:
             self.snap_to_grid = True
             self.modeUpdate.emit('#')
 
@@ -544,7 +552,7 @@ class DrawWidget(QtGui.QGraphicsView):
     def keyReleaseEvent(self, event):
         if event.key() == QtCore.Qt.Key_Shift:
             self.axis_align = False
-        elif event.key() ==  PySide.QtCore.Qt.Key.Key_Control:
+        elif event.key() ==  PySide.QtCore.Qt.Key.Key_Alt:
             self.snap_to_grid = False
         self.modeUpdate.emit(' ')
 
@@ -554,23 +562,15 @@ class DrawWidget(QtGui.QGraphicsView):
             self.current_poly = []
 
     def draw_grid_lines(self):
-        '''
-        Draw a grid inside @rect
-        '''
-        lines = []
-        step = 20
-        def round_close(n):
-            return int(step*round(n/step))
-
         top    = -1000
         bottom =  1000
         left   = -1000
         right  =  1000
-        for inc in range(left, right, step):
-            inc = round_close(inc)
+        for inc in range(left, right, self.grid_step):
+            # inc = round_close(inc)
             self.scene.addLine(QtCore.QLine(QtCore.QPoint(inc, top), QtCore.QPoint(inc, bottom)), self.GRID_PEN)
-        for inc in range(top, bottom, step):
-            inc = round_close(inc)
+        for inc in range(top, bottom, self.grid_step):
+            # inc = round_close(inc)
             self.scene.addLine(QtCore.QLine(QtCore.QPoint(left, inc), QtCore.QPoint(right, inc)), self.GRID_PEN)
 
 if __name__ == '__main__':
