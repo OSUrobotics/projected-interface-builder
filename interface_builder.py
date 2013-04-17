@@ -33,6 +33,7 @@ class BuilderWindow(QtGui.QMainWindow):
         self.builder.load_polygons(path)
 
 class Builder(QtGui.QWidget):
+    draw_mode = ' '
     def __init__(self):
         super(Builder, self).__init__()
         self.initUI()
@@ -45,6 +46,7 @@ class Builder(QtGui.QWidget):
         self.wid_draw = DrawWidget()
         self.wid_draw.polygonAdded.connect(self.polygonAdded)
         self.wid_draw.mouseMoved.connect(self.mouseMoved)
+        self.wid_draw.modeUpdate.connect(self.modeUpdate)
         
         self.but_save = QtGui.QPushButton('Save', self)
         self.but_load = QtGui.QPushButton('Load', self)
@@ -73,11 +75,15 @@ class Builder(QtGui.QWidget):
         self.wid_edit.itemSelectionChanged.connect(self.itemSelectionChanged)
         orig_press = self.wid_edit.keyPressEvent
         def new_press(event):
-            if event.key() == 16777223: # Del
+            if event.key() == QtCore.Qt.Key.Key_Delete:
                 # remove the point from the underlying polygon, then reload
                 if self.wid_edit.currentRow() > 1:
-                    self.wid_draw.objects[self.wid_list.currentItem().text()].polygon.remove(self.wid_edit.currentRow()-2)
-                    self.wid_draw.active_point = None
+                    poly_info = self.wid_draw.objects[self.wid_list.currentItem().text()]
+                    poly_info.polygon.remove(self.wid_edit.currentRow()-2)
+                    poly_info.update_item()
+                    # import pdb; pdb.set_trace()
+                    # poly_info.gfx_item
+                    self.wid_draw.clear_active_point()
                     self.listItemSelectionChanged()
             orig_press(event)
         self.wid_edit.keyPressEvent = new_press
@@ -226,18 +232,21 @@ class Builder(QtGui.QWidget):
     def deleteClick(self):
         self.wid_draw.removeObject(self.wid_list.currentItem().text())
         self.wid_list.takeItem(self.wid_list.currentRow())
-        self.wid_draw.active_point = None
+        self.wid_draw.clear_active_point()
         
     def polygonAdded(self, name):
         self.wid_list.addItem(name)
         
     def mouseMoved(self, location):
-        self.window().statusBar().showMessage('x=%s, y=%s' % (location.x(), location.y()))
+        self.window().statusBar().showMessage('%s x=%s, y=%s' % (self.draw_mode, location.x(), location.y()))
+
+    def modeUpdate(self, mode):
+        self.draw_mode = mode
 
     def listItemSelectionChanged(self):
         item = self.wid_list.currentItem()
         poly = self.wid_draw.objects[item.text()]
-        self.wid_draw.active_point = None
+        self.wid_draw.clear_active_point()
         self.wid_draw.setActive(item.text())
         self.wid_edit.setItem(0, 0, QtGui.QTableWidgetItem(poly.name))
         self.wid_edit.setItem(1, 0, QtGui.QTableWidgetItem(poly.id))
@@ -272,9 +281,11 @@ class Builder(QtGui.QWidget):
             self.updateId(item.text())
         else:
             try:
+                # print self
                 exec('x,y=%s' % item.text())
                 self.wid_draw.updatePoint(self.wid_list.currentItem().text(), row-2, x, y)
-                self.wid_draw.active_point = QtCore.QPoint(x,y)
+                # self.wid_draw.update_active_point(QtCore.QPoint(x,y))
+                self.wid_draw.clear_active_point()
             except Exception, e:
                 print e
                 
@@ -284,7 +295,7 @@ class Builder(QtGui.QWidget):
         if self.wid_edit.currentRow() > 1:
             try:
                 exec('x,y=%s' % item.text())
-                self.wid_draw.active_point = QtCore.QPoint(x,y)
+                self.wid_draw.update_active_point(QtCore.QPoint(x,y))
             except Exception, e:
                 print e
                  
@@ -294,6 +305,7 @@ class DrawWidget(QtGui.QGraphicsView):
     current_poly = []
     polygonAdded = QtCore.Signal(str)
     mouseMoved = QtCore.Signal(QtCore.QPointF)
+    modeUpdate = QtCore.Signal(str)
     active_poly = ''
     snap = False
     axis_align = False
@@ -305,8 +317,10 @@ class DrawWidget(QtGui.QGraphicsView):
     drag_start = False
     otherSnap = None
     last_click = None
-    POLYGON_PEN = QtGui.QPen(QtGui.QColor(128,128,128))
-    GRID_PEN    = QtGui.QPen(QtGui.QColor(25,25,25))
+    snap_to_grid = False
+    POLYGON_PEN      = QtGui.QPen(QtGui.QColor(128,128,128))
+    GRID_PEN         = QtGui.QPen(QtGui.QColor( 25, 25, 25))
+    ACTIVE_POINT_PEN = QtGui.QPen(QtGui.QColor(  0,255,  0), 4)
     # ACTIVE_PEN  = QtGui.QPen(color=QtGui.QColor(128,128,128), width=3)
 
     def __init__(self):
@@ -323,6 +337,14 @@ class DrawWidget(QtGui.QGraphicsView):
         text_item.setFont(FONT)
         poly_info.set_text_item(text_item)
         self.objects[poly_info.id] = poly_info
+
+    def update_active_point(self, point):
+        self.clear_active_point()
+        self.active_point = self.scene.addEllipse(QtCore.QRect(point-QtCore.QPoint(1,1), point+QtCore.QPoint(1,1)), self.ACTIVE_POINT_PEN)
+
+    def clear_active_point(self):
+        if self.active_point:
+            self.scene.removeItem(self.active_point)
 
     def updateName(self, pid, newName):
         self.objects[pid].name = newName
@@ -489,6 +511,7 @@ class DrawWidget(QtGui.QGraphicsView):
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Shift:
             self.axis_align = True
+            self.modeUpdate.emit('|')
         elif event.key() == QtCore.Qt.Key.Key_Escape:
             if self.text_move:
                 self.text_move = False
@@ -497,6 +520,9 @@ class DrawWidget(QtGui.QGraphicsView):
             self.remove_active_poly_items()
             
             self.snap = False
+        elif event.key() ==  PySide.QtCore.Qt.Key.Key_Control:
+            self.snap_to_grid = True
+            self.modeUpdate.emit('#')
 
     def wheelEvent(self, event):
         mul = 1.0
@@ -513,6 +539,9 @@ class DrawWidget(QtGui.QGraphicsView):
     def keyReleaseEvent(self, event):
         if event.key() == QtCore.Qt.Key_Shift:
             self.axis_align = False
+        elif event.key() ==  PySide.QtCore.Qt.Key.Key_Control:
+            self.snap_to_grid = False
+        self.modeUpdate.emit(' ')
 
     def remove_active_poly_items(self):
         for line in self.current_poly:
