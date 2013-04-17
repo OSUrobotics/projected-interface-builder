@@ -81,8 +81,6 @@ class Builder(QtGui.QWidget):
                     poly_info = self.wid_draw.objects[self.wid_list.currentItem().text()]
                     poly_info.polygon.remove(self.wid_edit.currentRow()-2)
                     poly_info.update_item()
-                    # import pdb; pdb.set_trace()
-                    # poly_info.gfx_item
                     self.wid_draw.clear_active_point()
                     self.listItemSelectionChanged()
             orig_press(event)
@@ -166,7 +164,6 @@ class Builder(QtGui.QWidget):
                 seq = 0
                 for name, poly in data['polygons'].iteritems():
                     poly_info = PolygonInfo(poly, name=name, uid='poly%s' % seq)
-                    # self.wid_draw.objects[poly_info.id] = poly_info
                     self.wid_draw.add_polygon(poly_info)
                     seq += 1
             else:        
@@ -320,8 +317,8 @@ class DrawWidget(QtGui.QGraphicsView):
     snap_to_grid = False
     POLYGON_PEN      = QtGui.QPen(QtGui.QColor(128,128,128))
     GRID_PEN         = QtGui.QPen(QtGui.QColor( 25, 25, 25))
-    ACTIVE_POINT_PEN = QtGui.QPen(QtGui.QColor(  0,255,  0), 4)
-    # ACTIVE_PEN  = QtGui.QPen(color=QtGui.QColor(128,128,128), width=3)
+    # ACTIVE_POINT_PEN = QtGui.QPen(QtGui.QColor(  0,255,  0), 4)
+    ACTIVE_PEN       = QtGui.QPen(QtGui.QColor(255,255,255), 3)
 
     def __init__(self):
         super(DrawWidget, self).__init__()
@@ -340,7 +337,8 @@ class DrawWidget(QtGui.QGraphicsView):
 
     def update_active_point(self, point):
         self.clear_active_point()
-        self.active_point = self.scene.addEllipse(QtCore.QRect(point-QtCore.QPoint(1,1), point+QtCore.QPoint(1,1)), self.ACTIVE_POINT_PEN)
+        offset = QtCore.QPoint(1,1)
+        self.active_point = self.scene.addEllipse(QtCore.QRect(point-offset, point+offset), self.ACTIVE_PEN)
 
     def clear_active_point(self):
         if self.active_point:
@@ -370,8 +368,15 @@ class DrawWidget(QtGui.QGraphicsView):
         self.scene.removeItem(obj.text_item)
         del obj
 
+    def make_top(self, item):
+        item.setZValue(max([sib.zValue() for sib in self.scene.items()])+1)
+
     def setActive(self, name):
+        if self.active_poly:
+            self.objects[self.active_poly].gfx_item.setPen(self.POLYGON_PEN)
         self.active_poly = name
+        self.objects[name].gfx_item.setPen(self.ACTIVE_PEN)
+        self.make_top(self.objects[name].gfx_item)
 
     def generate_name(self):
         return 'Polygon %s' % len(self.objects)
