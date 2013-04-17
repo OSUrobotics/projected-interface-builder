@@ -356,11 +356,11 @@ class DrawWidget(QtGui.QGraphicsView):
         self.setActive(newId)
 
     def updatePoint(self, uid, point_index, x, y):
-        # TODO update the item's poly as well
         pt = self.objects[uid].polygon[point_index]
         pt.setX(x)
         pt.setY(y)
         self.objects[uid].polygon.replace(point_index, pt)
+        self.objects[uid].gfx_item.setPolygon(self.objects[uid].polygon)
 
     def removeObject(self, name):
         obj = self.objects[name]
