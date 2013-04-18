@@ -278,7 +278,6 @@ class Builder(QtGui.QWidget):
             self.updateId(item.text())
         else:
             try:
-                # print self
                 exec('x,y=%s' % item.text())
                 self.wid_draw.updatePoint(self.wid_list.currentItem().text(), row-2, x, y)
                 # self.wid_draw.update_active_point(QtCore.QPoint(x,y))
@@ -323,10 +322,13 @@ class DrawWidget(QtGui.QGraphicsView):
 
     def __init__(self):
         super(DrawWidget, self).__init__()
+        self.setMouseTracking(True)
         self.scene = QtGui.QGraphicsScene()
         self.scene.setBackgroundBrush(QtGui.QColor(0,0,0))
         self.setScene(self.scene)
         self.draw_grid_lines()
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     
     def add_polygon(self, poly_info):
         poly_info.set_item(self.scene.addPolygon(poly_info.polygon, pen=self.POLYGON_PEN))
@@ -478,11 +480,15 @@ class DrawWidget(QtGui.QGraphicsView):
             self.text_rect_orig = self.objects[self.active_poly].text_rect.translated(QtCore.QPoint())
 
     def mousePressEvent(self, event):
-        self.setMouseTracking(True)
         if event.button() == QtCore.Qt.MouseButton.MiddleButton:
-            # subtracting out self.trans makes sure we take into account 
-            # the previous translation rather than just using the delta
-            self.drag_start = (event.pos()/self.scale - self.trans)
+            self.setDragMode(QtGui.QGraphicsView.DragMode.ScrollHandDrag)
+            super(DrawWidget, self).mousePressEvent(QtGui.QMouseEvent(
+                event.type(),
+                event.pos(),
+                QtCore.Qt.MouseButton.LeftButton,
+                event.buttons(),
+                event.modifiers()
+            ))
         elif self.active_poly and self.objects[self.active_poly].in_text_box((self.cursorx, self.cursory)):
             self.do_text_click(event)
         else:
@@ -490,18 +496,32 @@ class DrawWidget(QtGui.QGraphicsView):
         self.last_click = self.mapToScene(event.pos())
 
     def mouseReleaseEvent(self, event):
+        button = event.button()
+        if event.button() == QtCore.Qt.MouseButton.MiddleButton:
+            button = QtCore.Qt.MouseButton.LeftButton
+            self.setDragMode(QtGui.QGraphicsView.DragMode.NoDrag)
+
+        super(DrawWidget, self).mouseReleaseEvent(QtGui.QMouseEvent(
+            event.type(),
+            event.pos(),
+            button,
+            event.buttons(),
+            event.modifiers(),
+        ))
+
         self.drag_start = False
         
     def mouseDoubleClickEvent(self, event):        
         # polygon-ize the line list
-        poly = PySide.QtGui.QPolygon.fromList([l.line().p1().toPoint() for l in self.current_poly])
-        poly_container = PolygonInfo(QtGui.QPolygon(poly), name=self.generate_name())
-        self.add_polygon(poly_container)
-        self.polygonAdded.emit(poly_container.id)
-        self.polygon_active = False
-        self.remove_active_poly_items()
-        self.snap = False
-        self.last_click = None
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
+            poly = PySide.QtGui.QPolygon.fromList([l.line().p1().toPoint() for l in self.current_poly])
+            poly_container = PolygonInfo(QtGui.QPolygon(poly), name=self.generate_name())
+            self.add_polygon(poly_container)
+            self.polygonAdded.emit(poly_container.id)
+            self.polygon_active = False
+            self.remove_active_poly_items()
+            self.snap = False
+            self.last_click = None
                 
     def mouseMoveEvent(self, event):
         pos = self.mapToScene(event.pos())
@@ -520,6 +540,7 @@ class DrawWidget(QtGui.QGraphicsView):
             line = self.active_line.line()
             line.setP2(self.get_line_endpoint(pos, event.modifiers()))
             self.active_line.setLine(line)
+        super(DrawWidget, self).mouseMoveEvent(event)
 
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Control:
@@ -567,10 +588,8 @@ class DrawWidget(QtGui.QGraphicsView):
         left   = -1000
         right  =  1000
         for inc in range(left, right, self.grid_step):
-            # inc = round_close(inc)
             self.scene.addLine(QtCore.QLine(QtCore.QPoint(inc, top), QtCore.QPoint(inc, bottom)), self.GRID_PEN)
         for inc in range(top, bottom, self.grid_step):
-            # inc = round_close(inc)
             self.scene.addLine(QtCore.QLine(QtCore.QPoint(left, inc), QtCore.QPoint(right, inc)), self.GRID_PEN)
 
 if __name__ == '__main__':
