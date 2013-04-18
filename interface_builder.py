@@ -3,7 +3,6 @@ from __future__ import division
 
 import roslib; roslib.load_manifest('projected_interface_builder')
 import rospy
-import PySide
 from PySide import QtGui, QtCore
 from math import hypot
 
@@ -53,14 +52,10 @@ class Builder(QtGui.QWidget):
         # Widgets for the polygon tab
         polygon_tab_container = QtGui.QWidget()
         self.wid_list = QtGui.QListWidget()
-        # self.wid_list.itemClicked.connect(self.itemClicked)
         self.wid_list.itemSelectionChanged.connect(self.listItemSelectionChanged)
         
         self.but_delete = QtGui.QPushButton('Delete', polygon_tab_container)
         self.but_delete.clicked.connect(self.deleteClick)
-        
-        # self.wid_name = QtGui.QLineEdit(polygon_tab_container)
-        # self.wid_name.textChanged[str].connect(self.updateName)
         
         self.wid_tabs = QtGui.QTabWidget(polygon_tab_container)
         layout.addWidget(self.wid_tabs, 0, 1)
@@ -86,13 +81,11 @@ class Builder(QtGui.QWidget):
         polygon_tab_container.setLayout(polygon_tab_layout)
         self.wid_tabs.addTab(polygon_tab_container, 'Polygons')
         polygon_tab_layout.addWidget(self.wid_list,   0, 0)
-        # polygon_tab_layout.addWidget(self.wid_name,   1, 0)
         polygon_tab_layout.addWidget(self.wid_edit,   1, 0)
         polygon_tab_layout.addWidget(self.but_delete, 2, 0)
         
         #Widgets for the ROS tab
         ros_tab_container = QtGui.QWidget()
-        # ros_tab_layout = QtGui.QGridLayout()
         ros_tab_layout = QtGui.QVBoxLayout()
         ros_tab_layout.addStretch(1)
         ros_tab_container.setLayout(ros_tab_layout)
@@ -156,7 +149,7 @@ class Builder(QtGui.QWidget):
         if len(fname) == 0: return
         with open(fname, 'r') as f:
             data = pickle.load(f)
-            if type(data['polygons'].values()[0]) == PySide.QtGui.QPolygon: #enables loading old data
+            if type(data['polygons'].values()[0]) == QtGui.QPolygon: #enables loading old data
                 seq = 0
                 for name, poly in data['polygons'].iteritems():
                     poly_info = PolygonInfo(poly, name=name, uid='poly%s' % seq)
@@ -510,7 +503,7 @@ class DrawWidget(QtGui.QGraphicsView):
     def mouseDoubleClickEvent(self, event):        
         # polygon-ize the line list
         if event.button() == QtCore.Qt.MouseButton.LeftButton:
-            poly = PySide.QtGui.QPolygon.fromList([l.line().p1().toPoint() for l in self.current_poly])
+            poly = QtGui.QPolygon.fromList([l.line().p1().toPoint() for l in self.current_poly])
             poly_container = PolygonInfo(QtGui.QPolygon(poly), name=self.generate_name())
             self.add_polygon(poly_container)
             self.polygonAdded.emit(poly_container.id)
@@ -549,7 +542,7 @@ class DrawWidget(QtGui.QGraphicsView):
             self.remove_active_poly_items()
             
             self.snap = False
-        elif event.key() ==  PySide.QtCore.Qt.Key.Key_Shift:
+        elif event.key() ==  QtCore.Qt.Key.Key_Shift:
             self.modeUpdate.emit('#')
 
     def wheelEvent(self, event):
@@ -591,7 +584,7 @@ class DrawWidget(QtGui.QGraphicsView):
                 ), self.GRID_PEN)
 
 if __name__ == '__main__':
-    app = PySide.QtGui.QApplication(sys.argv)
+    app = QtGui.QApplication(sys.argv)
     gui = BuilderWindow()
     if len(rospy.myargv()) == 2:
         gui.load_polygons(rospy.myargv()[1])
