@@ -99,7 +99,7 @@ class Builder(QtGui.QWidget):
         self.but_send.setEnabled(False)
         
         self.wid_frame = QtGui.QLineEdit('/base_link', ros_tab_container)
-        self.wid_resolution = QtGui.QLineEdit('1', ros_tab_container)
+        self.wid_resolution = QtGui.QLineEdit('0.001', ros_tab_container)
         self.offset_x = QtGui.QLineEdit('0.0', ros_tab_container)
         self.offset_y = QtGui.QLineEdit('0.0', ros_tab_container)
         self.offset_z = QtGui.QLineEdit('0.0', ros_tab_container)
@@ -226,7 +226,8 @@ class Builder(QtGui.QWidget):
         self.wid_list.addItem(name)
         
     def mouseMoved(self, location):
-        message = '%s x=%s, y=%s' % (self.draw_mode, location.x(), location.y())
+        res = float(self.wid_resolution.text())
+        message = '%s x=%0.4fm, y=%0.4f' % (self.draw_mode, location.x()*res, location.y()*res)
         self.window().statusBar().showMessage(message)
 
     def modeUpdate(self, mode):
@@ -517,7 +518,7 @@ class DrawWidget(QtGui.QGraphicsView):
         pos = self.mapToScene(event.pos())
         self.cursorx = pos.x()
         self.cursory = pos.y()
-        self.mouseMoved.emit(pos)
+        self.mouseMoved.emit(self.get_line_endpoint(pos, event.modifiers()))
         if event.buttons() & QtCore.Qt.MouseButton.MiddleButton:
             if self.drag_start:
                 trans = (pos/self.scale - self.drag_start)
