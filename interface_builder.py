@@ -59,10 +59,13 @@ class Builder(QtGui.QWidget):
         self.but_delete.clicked.connect(self.deleteClick)
         
         self.wid_tabs = QtGui.QTabWidget(polygon_tab_container)
+        self.wid_tabs.setMinimumWidth(200)
         layout.addWidget(self.wid_tabs, 0, 1)
 
         self.wid_edit = QtGui.QTableWidget(2, 1, polygon_tab_container)
+        # self.wid_edit.setColumnMinimumWidth
         self.wid_edit.setVerticalHeaderLabels(['Name', 'ID'])
+        self.wid_edit.setColumnWidth(0, 150)
         self.wid_edit.cellChanged.connect(self.cellChanged)
         self.wid_edit.itemSelectionChanged.connect(self.itemSelectionChanged)
         orig_press = self.wid_edit.keyPressEvent
@@ -244,8 +247,11 @@ class Builder(QtGui.QWidget):
         self.wid_edit.setItem(1, 0, QtGui.QTableWidgetItem(poly.id))
         points = poly.polygon
         self.wid_edit.setRowCount(2+len(points))
+        res = float(self.wid_resolution.text())
         for px, point in enumerate(points):
-            self.wid_edit.setItem(px+2, 0, QtGui.QTableWidgetItem('(%s, %s)' % (point.x(), point.y())))
+            x = point.x()*res
+            y = point.y()*res
+            self.wid_edit.setItem(px+2, 0, QtGui.QTableWidgetItem('(%0.4f, %0.4f)' % (x, y)))
         
     def updateName(self, text):
         text = text.replace('\\n', '\n')
@@ -272,9 +278,10 @@ class Builder(QtGui.QWidget):
         elif row == 1:
             self.updateId(item.text())
         else:
+            res = float(self.wid_resolution.text())
             try:
                 exec('x,y=%s' % item.text())
-                self.wid_draw.updatePoint(self.wid_list.currentItem().text(), row-2, x, y)
+                self.wid_draw.updatePoint(self.wid_list.currentItem().text(), row-2, x/res, y/res)
                 # self.wid_draw.update_active_point(QtCore.QPoint(x,y))
                 self.wid_draw.clear_active_point()
             except Exception, e:
@@ -283,9 +290,10 @@ class Builder(QtGui.QWidget):
     def itemSelectionChanged(self):
         item = self.wid_edit.currentItem()
         if self.wid_edit.currentRow() > 1:
+            res = float(self.wid_resolution.text())
             try:
                 exec('x,y=%s' % item.text())
-                self.wid_draw.update_active_point(QtCore.QPoint(x, y))
+                self.wid_draw.update_active_point(QtCore.QPoint(x/res, y/res))
             except Exception, e:
                 print e
                  
@@ -310,7 +318,7 @@ class DrawWidget(QtGui.QGraphicsView):
     # res = 0.001
     POLYGON_PEN      = QtGui.QPen(QtGui.QColor(128, 128, 128))
     GRID_PEN         = QtGui.QPen(QtGui.QColor( 25,  25,  25))
-    # ACTIVE_POINT_PEN = QtGui.QPen(QtGui.QColor(  0,255,  0), 4)
+    ACTIVE_POINT_PEN = QtGui.QPen(QtGui.QColor(  0, 255,   0), 3)
     ACTIVE_PEN       = QtGui.QPen(QtGui.QColor(255, 255, 255), 3)
 
     def __init__(self):
@@ -340,7 +348,8 @@ class DrawWidget(QtGui.QGraphicsView):
     def update_active_point(self, point):
         self.clear_active_point()
         offset = QtCore.QPoint(1, 1)
-        self.active_point = self.scene.addEllipse(QtCore.QRect(point-offset, point+offset), self.ACTIVE_PEN)
+        self.active_point = self.scene.addEllipse(QtCore.QRect(point-offset, point+offset), self.ACTIVE_POINT_PEN)
+        self.active_point.setZValue(self.objects[self.active_poly].zValue()+1)
 
     def clear_active_point(self):
         if self.active_point:
@@ -545,7 +554,7 @@ class DrawWidget(QtGui.QGraphicsView):
 
             # update the ruler
             self.ruler.setPos((line.p1() + line.p2())/2)
-            rise, run = (line.p2() - line.p1()).toTuple()
+            rise, run = line.dx(), line.dy()
             if rise != 0:
                 angle = np.degrees(np.arctan(run/rise))
                 self.ruler.setRotation(angle)

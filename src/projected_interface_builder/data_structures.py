@@ -27,6 +27,9 @@ class PolygonInfo:
         bounding_rect.moveCenter(self.text_rect.center())
         self.text_rect = bounding_rect
 
+    def zValue(self):
+        return self.gfx_item.zValue()
+
     def update_item(self):
         self.gfx_item.setPolygon(self.polygon)
 
