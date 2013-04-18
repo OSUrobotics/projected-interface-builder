@@ -462,6 +462,7 @@ class DrawWidget(QtGui.QGraphicsView):
         return pos
 
     def do_text_click(self, event):
+        print 'text click'
         if self.text_move:
             self.text_move = False
         else:
