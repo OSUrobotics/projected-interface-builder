@@ -14,6 +14,7 @@ from projected_interface_builder import colors
 
 
 FONT = QtGui.QFont('Decorative', 30)
+RULER_FONT = QtGui.QFont('Decorative', 12)
 
 class BuilderWindow(QtGui.QMainWindow):
     def __init__(self):
@@ -212,6 +213,7 @@ class Builder(QtGui.QWidget):
         self.but_startros.setText('Node Running...')
         
     def resolutionChanged(self, text):
+        self.wid_draw.set_resolution(float(text))
         try:
             FONT.setPointSize(30-float(text)*12000)
         except Exception:
@@ -305,6 +307,7 @@ class DrawWidget(QtGui.QGraphicsView):
     otherSnap = None
     last_click = None
     grid_step = 20
+    # res = 0.001
     POLYGON_PEN      = QtGui.QPen(QtGui.QColor(128, 128, 128))
     GRID_PEN         = QtGui.QPen(QtGui.QColor( 25,  25,  25))
     # ACTIVE_POINT_PEN = QtGui.QPen(QtGui.QColor(  0,255,  0), 4)
@@ -315,11 +318,17 @@ class DrawWidget(QtGui.QGraphicsView):
         self.setMouseTracking(True)
         self.scene = QtGui.QGraphicsScene()
         self.scene.setBackgroundBrush(QtGui.QColor(0, 0, 0))
+        self.ruler = self.scene.addText('', RULER_FONT)
+        self.ruler.hide()
+        self.ruler.setZValue(1000)
         self.setScene(self.scene)
         self.draw_grid_lines()
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     
+    def set_resolution(self, res):
+        self.res = res
+
     def add_polygon(self, poly_info):
         poly_info.set_item(self.scene.addPolygon(poly_info.polygon, pen=self.POLYGON_PEN))
         text_item = self.scene.addText(poly_info.name)
@@ -412,6 +421,7 @@ class DrawWidget(QtGui.QGraphicsView):
 
     def do_polygon_click(self, event):
         cursor = self.mapToScene(event.pos())
+        # this lets is close a polygon by single-clicking on its first vertex
         if self.snap and not self.otherSnap:
             self.mouseDoubleClickEvent(QtGui.QMouseEvent(
                 event.type(),
@@ -513,6 +523,7 @@ class DrawWidget(QtGui.QGraphicsView):
             self.remove_active_poly_items()
             self.snap = False
             self.last_click = None
+            self.ruler.hide()
                 
     def mouseMoveEvent(self, event):
         pos = self.mapToScene(event.pos())
@@ -531,6 +542,16 @@ class DrawWidget(QtGui.QGraphicsView):
             line = self.active_line.line()
             line.setP2(self.get_line_endpoint(pos, event.modifiers()))
             self.active_line.setLine(line)
+
+            # update the ruler
+            self.ruler.setPos((line.p1() + line.p2())/2)
+            rise, run = (line.p2() - line.p1()).toTuple()
+            if rise != 0:
+                angle = np.degrees(np.arctan(run/rise))
+                self.ruler.setRotation(angle)
+            dist = np.hypot(rise, run)*self.res
+            self.ruler.setPlainText('%0.4fm' % dist)
+            self.ruler.show()
         super(DrawWidget, self).mouseMoveEvent(event)
 
     def keyPressEvent(self, event):
@@ -542,7 +563,8 @@ class DrawWidget(QtGui.QGraphicsView):
                 self.objects[self.active_poly].text_rect = self.text_rect_orig
             self.polygon_active = False
             self.remove_active_poly_items()
-            
+            self.ruler.hide()
+
             self.snap = False
         elif event.key() ==  QtCore.Qt.Key.Key_Shift:
             self.modeUpdate.emit('#')
