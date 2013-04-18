@@ -5,12 +5,8 @@ import roslib; roslib.load_manifest('projected_interface_builder')
 import rospy
 import PySide
 from PySide import QtGui, QtCore
-from PySide.QtGui import QPalette
 from math import hypot
 
-from std_msgs.msg import ColorRGBA
-
-from matplotlib.nxutils import pnpoly
 import sys
 import numpy as np
 
@@ -194,7 +190,10 @@ class Builder(QtGui.QWidget):
         for uid, poly_info in self.wid_draw.objects.iteritems():
             ps = QtPolyToROS(poly_info.polygon, uid, x, y, z, res, self.wid_frame.text())
             ps.header.stamp = rospy.Time.now()
-            text_rect = QtPolyToROS(QtRectToPoly(poly_info.text_rect), '', x, y, z, res, self.wid_frame.text())
+            text_rect = QtPolyToROS(
+                QtRectToPoly(poly_info.text_rect),
+                '', x, y, z, res, self.wid_frame.text()
+            )
             print ps
             self.polygon_proxy(uid, poly_info.name, ps, text_rect.polygon, colors.WHITE)
             markers.markers.append(toMarker(ps, np.int32(hash(uid))))
@@ -203,7 +202,6 @@ class Builder(QtGui.QWidget):
     def startnode(self):
         self.but_send.setEnabled(True)
         from projector_interface.srv import DrawPolygon, ClearPolygons
-        from geometry_msgs.msg import Point, PolygonStamped
         from visualization_msgs.msg import MarkerArray
 
         rospy.init_node('interface_builder', anonymous=True)
@@ -235,7 +233,8 @@ class Builder(QtGui.QWidget):
         self.wid_list.addItem(name)
         
     def mouseMoved(self, location):
-        self.window().statusBar().showMessage('%s x=%s, y=%s' % (self.draw_mode, location.x(), location.y()))
+        message = '%s x=%s, y=%s' % (self.draw_mode, location.x(), location.y())
+        self.window().statusBar().showMessage(message)
 
     def modeUpdate(self, mode):
         self.draw_mode = mode
@@ -285,13 +284,12 @@ class Builder(QtGui.QWidget):
             except Exception, e:
                 print e
                 
-    # def cellPressed(self, row, col):
     def itemSelectionChanged(self):
         item = self.wid_edit.currentItem()
         if self.wid_edit.currentRow() > 1:
             try:
                 exec('x,y=%s' % item.text())
-                self.wid_draw.update_active_point(QtCore.QPoint(x,y))
+                self.wid_draw.update_active_point(QtCore.QPoint(x, y))
             except Exception, e:
                 print e
                  
@@ -304,7 +302,6 @@ class DrawWidget(QtGui.QGraphicsView):
     modeUpdate = QtCore.Signal(str)
     active_poly = ''
     snap = False
-    axis_align = False
     active_point = None
     cursorx, cursory = 0, 0
     text_move = False
@@ -313,18 +310,17 @@ class DrawWidget(QtGui.QGraphicsView):
     drag_start = False
     otherSnap = None
     last_click = None
-    snap_to_grid = False
     grid_step = 20
-    POLYGON_PEN      = QtGui.QPen(QtGui.QColor(128,128,128))
-    GRID_PEN         = QtGui.QPen(QtGui.QColor( 25, 25, 25))
+    POLYGON_PEN      = QtGui.QPen(QtGui.QColor(128, 128, 128))
+    GRID_PEN         = QtGui.QPen(QtGui.QColor( 25,  25,  25))
     # ACTIVE_POINT_PEN = QtGui.QPen(QtGui.QColor(  0,255,  0), 4)
-    ACTIVE_PEN       = QtGui.QPen(QtGui.QColor(255,255,255), 3)
+    ACTIVE_PEN       = QtGui.QPen(QtGui.QColor(255, 255, 255), 3)
 
     def __init__(self):
         super(DrawWidget, self).__init__()
         self.setMouseTracking(True)
         self.scene = QtGui.QGraphicsScene()
-        self.scene.setBackgroundBrush(QtGui.QColor(0,0,0))
+        self.scene.setBackgroundBrush(QtGui.QColor(0, 0, 0))
         self.setScene(self.scene)
         self.draw_grid_lines()
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -340,7 +336,7 @@ class DrawWidget(QtGui.QGraphicsView):
 
     def update_active_point(self, point):
         self.clear_active_point()
-        offset = QtCore.QPoint(1,1)
+        offset = QtCore.QPoint(1, 1)
         self.active_point = self.scene.addEllipse(QtCore.QRect(point-offset, point+offset), self.ACTIVE_PEN)
 
     def clear_active_point(self):
@@ -399,7 +395,7 @@ class DrawWidget(QtGui.QGraphicsView):
     def closeToAny(self, p):
         for poly_info in self.objects.values():
             for v in poly_info.polygon:
-                if self.closeTo(v,p):
+                if self.closeTo(v, p):
                     return v
         return None
 
@@ -464,10 +460,10 @@ class DrawWidget(QtGui.QGraphicsView):
         cts = self.closeToCurrent(pos)
         if cts: return cts
         if modifiers & QtCore.Qt.ShiftModifier:
-            x,y = pos.toTuple()
+            x, y = pos.toTuple()
             x = int(self.grid_step*round(x/self.grid_step))
             y = int(self.grid_step*round(y/self.grid_step))
-            grid_pt = QtCore.QPoint(x,y)
+            grid_pt = QtCore.QPoint(x, y)
             if self.closeTo(pos, grid_pt):
                 return grid_pt
         return pos
@@ -544,7 +540,6 @@ class DrawWidget(QtGui.QGraphicsView):
 
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Control:
-            self.axis_align = True
             self.modeUpdate.emit('|')
         if event.key() == QtCore.Qt.Key.Key_Escape:
             if self.text_move:
@@ -555,7 +550,6 @@ class DrawWidget(QtGui.QGraphicsView):
             
             self.snap = False
         elif event.key() ==  PySide.QtCore.Qt.Key.Key_Shift:
-            self.snap_to_grid = True
             self.modeUpdate.emit('#')
 
     def wheelEvent(self, event):
@@ -571,10 +565,6 @@ class DrawWidget(QtGui.QGraphicsView):
         
         
     def keyReleaseEvent(self, event):
-        if event.key() == QtCore.Qt.Key_Shift:
-            self.axis_align = False
-        elif event.key() ==  PySide.QtCore.Qt.Key.Key_Alt:
-            self.snap_to_grid = False
         self.modeUpdate.emit(' ')
 
     def remove_active_poly_items(self):
@@ -588,9 +578,17 @@ class DrawWidget(QtGui.QGraphicsView):
         left   = -1000
         right  =  1000
         for inc in range(left, right, self.grid_step):
-            self.scene.addLine(QtCore.QLine(QtCore.QPoint(inc, top), QtCore.QPoint(inc, bottom)), self.GRID_PEN)
+            self.scene.addLine(
+                QtCore.QLine(
+                    QtCore.QPoint(inc, top),
+                    QtCore.QPoint(inc, bottom)
+                ), self.GRID_PEN)
         for inc in range(top, bottom, self.grid_step):
-            self.scene.addLine(QtCore.QLine(QtCore.QPoint(left, inc), QtCore.QPoint(right, inc)), self.GRID_PEN)
+            self.scene.addLine(
+                QtCore.QLine(
+                    QtCore.QPoint(left, inc),
+                    QtCore.QPoint(right, inc)
+                ), self.GRID_PEN)
 
 if __name__ == '__main__':
     app = PySide.QtGui.QApplication(sys.argv)
