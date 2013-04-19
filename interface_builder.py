@@ -309,8 +309,6 @@ class DrawWidget(QtGui.QGraphicsView):
     active_point = None
     cursorx, cursory = 0, 0
     text_move = False
-    scale = 1.0
-    trans = QtCore.QPoint()
     drag_start = False
     otherSnap = None
     last_click = None
@@ -326,9 +324,15 @@ class DrawWidget(QtGui.QGraphicsView):
         self.setMouseTracking(True)
         self.scene = QtGui.QGraphicsScene()
         self.scene.setBackgroundBrush(QtGui.QColor(0, 0, 0))
-        self.ruler = self.scene.addText('', RULER_FONT)
-        self.ruler.hide()
-        self.ruler.setZValue(1000)
+
+        self._ruler = self.scene.addText('', RULER_FONT)
+        self._ruler.hide()
+        self._ruler.setZValue(1000)
+
+        self._cursor_point = self.scene.addEllipse(QtCore.QRect(0, 0, 0, 0), self.ACTIVE_POINT_PEN)
+        self._cursor_point.hide()
+        self._cursor_point.setZValue(1000)
+
         self.setScene(self.scene)
         self.draw_grid_lines()
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -441,12 +445,13 @@ class DrawWidget(QtGui.QGraphicsView):
             ))
             return
         # Create the line connecting to the cursor
+        endpoint = self.get_line_endpoint(cursor, event.modifiers())
         if (event.button() == QtCore.Qt.MouseButton.LeftButton) and (self.polygon_active):
             # If this isn't the first point in the polygon
-            self.reset_active_line(self.get_line_endpoint(cursor, event.modifiers()))
+            self.reset_active_line(endpoint)
         elif (event.button() == QtCore.Qt.MouseButton.LeftButton) and (not self.polygon_active):
             # If this is the first point in the polygon
-            pt = self.closeToAny(cursor)
+            pt = endpoint
             if pt is not None:
                 self.last_click = pt
 
@@ -464,25 +469,39 @@ class DrawWidget(QtGui.QGraphicsView):
         self.scene.addItem(self.active_line)
         self.current_poly.append(self.active_line)
 
-    def get_line_endpoint(self, pos, modifiers):
+    def update_cursor_point(self, pos):
+        self._cursor_point.show()
+        offset = QtCore.QPoint(1, 1)
+        self._cursor_point.setRect(QtCore.QRectF(pos-offset, pos+offset))
+
+    def get_line_endpoint(self, pos, modifiers, highlight=False):
         if modifiers == (QtCore.Qt.ShiftModifier | QtCore.Qt.ControlModifier):
             return self.snapToAxis(pos)
 
         cta = self.closeToAny(pos)
-        if cta: return cta
+        if cta:
+            if highlight:
+                self.update_cursor_point(cta)
+            return cta
         cts = self.closeToCurrent(pos)
-        if cts: return cts
+        if cts:
+            if highlight:
+                self.update_cursor_point(cts)
+            return cts
         if modifiers & QtCore.Qt.ShiftModifier:
             x, y = pos.toTuple()
             x = int(self.grid_step*round(x/self.grid_step))
             y = int(self.grid_step*round(y/self.grid_step))
             grid_pt = QtCore.QPoint(x, y)
             if self.closeTo(pos, grid_pt):
+                if highlight:
+                    self.update_cursor_point(grid_pt)
                 return grid_pt
+
+        self._cursor_point.hide()
         return pos
 
     def do_text_click(self, event):
-        print 'text click'
         if self.text_move:
             self.text_move = False
         else:
@@ -532,35 +551,30 @@ class DrawWidget(QtGui.QGraphicsView):
             self.remove_active_poly_items()
             self.snap = False
             self.last_click = None
-            self.ruler.hide()
+            self._ruler.hide()
                 
     def mouseMoveEvent(self, event):
         pos = self.mapToScene(event.pos())
         self.cursorx = pos.x()
         self.cursory = pos.y()
-        self.mouseMoved.emit(self.get_line_endpoint(pos, event.modifiers()))
-        if event.buttons() & QtCore.Qt.MouseButton.MiddleButton:
-            if self.drag_start:
-                trans = (pos/self.scale - self.drag_start)
-                self.translate(trans.x(), trans.y())
+        endpoint = self.get_line_endpoint(pos, event.modifiers(), highlight=True)
+        self.mouseMoved.emit(endpoint)
 
-        elif self.text_move:
-            self.objects[self.active_poly].text_rect.moveCenter(QtCore.QPoint(self.cursorx, self.cursory))
         if self.polygon_active:
             # Note: line() returns a *copy* of the backing line, so changing it doesn't do anything
             line = self.active_line.line()
-            line.setP2(self.get_line_endpoint(pos, event.modifiers()))
+            line.setP2(endpoint)
             self.active_line.setLine(line)
 
             # update the ruler
-            self.ruler.setPos((line.p1() + line.p2())/2)
+            self._ruler.setPos((line.p1() + line.p2())/2)
             rise, run = line.dx(), line.dy()
             if rise != 0:
                 angle = np.degrees(np.arctan(run/rise))
-                self.ruler.setRotation(angle)
+                self._ruler.setRotation(angle)
             dist = np.hypot(rise, run)*self.res
-            self.ruler.setPlainText('%0.4fm' % dist)
-            self.ruler.show()
+            self._ruler.setPlainText('%0.4fm' % dist)
+            self._ruler.show()
         super(DrawWidget, self).mouseMoveEvent(event)
 
     def keyPressEvent(self, event):
@@ -572,23 +586,11 @@ class DrawWidget(QtGui.QGraphicsView):
                 self.objects[self.active_poly].text_rect = self.text_rect_orig
             self.polygon_active = False
             self.remove_active_poly_items()
-            self.ruler.hide()
+            self._ruler.hide()
 
             self.snap = False
         elif event.key() ==  QtCore.Qt.Key.Key_Shift:
             self.modeUpdate.emit('#')
-
-    def wheelEvent(self, event):
-        mul = 1.0
-        if event.delta() < 0:
-            mul *= 0.9
-        if event.delta() > 0:
-            mul *= 1.1
-
-        self.scale *= mul
-        pos = self.mapToScene(event.pos())
-        self.trans = -(pos*self.scale - pos)
-        
         
     def keyReleaseEvent(self, event):
         self.modeUpdate.emit(' ')
