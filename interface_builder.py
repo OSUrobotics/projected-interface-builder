@@ -451,7 +451,7 @@ class DrawWidget(QtGui.QGraphicsView):
             ))
             return
         # Create the line connecting to the cursor
-        endpoint = self.get_line_endpoint(cursor, event.modifiers())
+        endpoint = self.get_line_endpoint(cursor, event.modifiers(), highlight=True)
         if (event.button() == QtCore.Qt.MouseButton.LeftButton) and (self.polygon_active):
             # If this isn't the first point in the polygon
             self.reset_active_line(endpoint)
@@ -485,12 +485,12 @@ class DrawWidget(QtGui.QGraphicsView):
             return self.snapToAxis(pos)
 
         cta = self.closeToAny(pos)
-        if cta:
+        if cta is not None:
             if highlight:
                 self.update_cursor_point(cta)
             return cta
         cts = self.closeToCurrent(pos)
-        if cts:
+        if cts is not None:
             if highlight:
                 self.update_cursor_point(cts)
             return cts
