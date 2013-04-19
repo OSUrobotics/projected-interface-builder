@@ -36,6 +36,7 @@ class Builder(QtGui.QWidget):
         self.show()        
         
     def initUI(self):
+        self.RES = 0.001
         self.setGeometry(0, 500, 900, 400)
         layout = QtGui.QGridLayout()
         self.setLayout(layout)
@@ -43,7 +44,8 @@ class Builder(QtGui.QWidget):
         self.wid_draw.polygonAdded.connect(self.polygonAdded)
         self.wid_draw.mouseMoved.connect(self.mouseMoved)
         self.wid_draw.modeUpdate.connect(self.modeUpdate)
-        
+        self.wid_draw.set_resolution(self.RES)
+
         self.but_save = QtGui.QPushButton('Save', self)
         self.but_load = QtGui.QPushButton('Load', self)
         
@@ -103,7 +105,7 @@ class Builder(QtGui.QWidget):
         self.but_send.setEnabled(False)
         
         self.wid_frame = QtGui.QLineEdit('/base_link', ros_tab_container)
-        self.wid_resolution = QtGui.QLineEdit('0.001', ros_tab_container)
+        self.wid_resolution = QtGui.QLineEdit(str(self.RES), ros_tab_container)
         self.offset_x = QtGui.QLineEdit('0.0', ros_tab_container)
         self.offset_y = QtGui.QLineEdit('0.0', ros_tab_container)
         self.offset_z = QtGui.QLineEdit('0.0', ros_tab_container)
@@ -136,7 +138,7 @@ class Builder(QtGui.QWidget):
         import pickle
         with open(fname, 'w') as f:
             pickle.dump(dict(
-                polygons   = self.wid_draw.objects,
+                polygons   = dict([(s, p.exportable()) for s, p in self.wid_draw.objects.iteritems()]),
                 frame_id   = self.wid_frame.text(),
                 resolution = self.wid_resolution.text(),
                 offset_x   = self.offset_x.text(),
@@ -159,8 +161,10 @@ class Builder(QtGui.QWidget):
                     poly_info = PolygonInfo(poly, name=name, uid='poly%s' % seq)
                     self.wid_draw.add_polygon(poly_info)
                     seq += 1
-            else:        
-                self.wid_draw.objects = data['polygons']
+            else:
+                for poly in data['polygons'].values():
+                    self.wid_draw.add_polygon(poly) 
+
             self.wid_frame.setText(data['frame_id'])
             self.wid_resolution.setText(str(data['resolution']))
             self.offset_x.setText(str(data['offset_x']))
@@ -312,8 +316,8 @@ class DrawWidget(QtGui.QGraphicsView):
     drag_start = False
     otherSnap = None
     last_click = None
-    grid_step = 20
-    # res = 0.001
+    _grid_step = 20
+    res = 0.001
     POLYGON_PEN      = QtGui.QPen(QtGui.QColor(128, 128, 128))
     GRID_PEN         = QtGui.QPen(QtGui.QColor( 25,  25,  25))
     ACTIVE_POINT_PEN = QtGui.QPen(QtGui.QColor(  0, 255,   0), 3)
@@ -337,6 +341,8 @@ class DrawWidget(QtGui.QGraphicsView):
         self.draw_grid_lines()
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        self.centerOn(0, 0)
     
     def set_resolution(self, res):
         self.res = res
@@ -490,8 +496,8 @@ class DrawWidget(QtGui.QGraphicsView):
             return cts
         if modifiers & QtCore.Qt.ShiftModifier:
             x, y = pos.toTuple()
-            x = int(self.grid_step*round(x/self.grid_step))
-            y = int(self.grid_step*round(y/self.grid_step))
+            x = int(self._grid_step*round(x/self._grid_step))
+            y = int(self._grid_step*round(y/self._grid_step))
             grid_pt = QtCore.QPoint(x, y)
             if self.closeTo(pos, grid_pt):
                 if highlight:
@@ -605,13 +611,13 @@ class DrawWidget(QtGui.QGraphicsView):
         bottom =  1000
         left   = -1000
         right  =  1000
-        for inc in range(left, right, self.grid_step):
+        for inc in range(left, right, self._grid_step):
             self.scene.addLine(
                 QtCore.QLine(
                     QtCore.QPoint(inc, top),
                     QtCore.QPoint(inc, bottom)
                 ), self.GRID_PEN)
-        for inc in range(top, bottom, self.grid_step):
+        for inc in range(top, bottom, self._grid_step):
             self.scene.addLine(
                 QtCore.QLine(
                     QtCore.QPoint(left, inc),
