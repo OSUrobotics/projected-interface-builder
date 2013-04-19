@@ -54,7 +54,7 @@ class TVInterface(ProjectedInterface):
 
 if __name__ == '__main__':
     rospy.init_node('tv_interface')
-    interf = TVInterface('/home/lazewatskyd/ros-pkgs/projected_interface_builder/tv.pkl')
+    interf = TVInterface('../interfaces/tv.pkl')
     interf.start()
     rospy.spin()
     interf.maybe_write_changes()
