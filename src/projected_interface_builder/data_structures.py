@@ -53,3 +53,6 @@ class PolygonInfo:
            and pt[0] < self.text_rect.right() \
            and pt[1] < self.text_rect.bottom() \
            and pt[1] > self.text_rect.top()
+
+    def exportable(self):
+        return PolygonInfo(self.polygon, self.id, self.name)
