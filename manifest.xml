@@ -1,7 +1,7 @@
 <package>
   <description brief="projector_interface">
 
-     projected_interface_builder
+     Utility for graphically building projected interfaces.
 
   </description>
   <author>Daniel Lazewatsky</author>
