@@ -7,7 +7,7 @@
   <author>Daniel Lazewatsky</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
-  <url>http://ros.org/wiki/projector_interface</url>
+  <url>http://ros.org/wiki/projected_interface_builder</url>
   <depend package="rospy"/>
   <depend package="sensor_msgs"/>
   <depend package="geometry_msgs"/>
