@@ -44,6 +44,8 @@ class PolygonInfo:
             self.id = self._gen_id()
 
     def update_font_box(self, font_metrics=QtGui.QFontMetrics(FONT)):
+        if self.text_item:
+            self.text_item.setHtml(self.name)
         bounding_rect = font_metrics.boundingRect(self.name)
         lines = self.name.split('\n')
         nlines = len(lines)

@@ -181,6 +181,9 @@ class Builder(QtGui.QWidget):
         import pickle
         if len(fname) == 0: return
         with open(fname, 'r') as f:
+            self.wid_list.clear()
+            self.wid_draw.clear()
+
             data = pickle.load(f)
             if type(data['polygons'].values()[0]) == QtGui.QPolygon: #enables loading old data
                 seq = 0
@@ -371,6 +374,15 @@ class DrawWidget(QtGui.QGraphicsView):
 
         self.centerOn(0, 0)
     
+    def clear(self):
+        for obj in self.objects.itervalues():
+            self.scene.removeItem(obj.gfx_item)
+            self.scene.removeItem(obj.text_item)
+        self.objects.clear()
+        self.active_poly = ''
+        self.active_point = None
+        self.polygon_active = False
+
     def set_resolution(self, res):
         self.res = res
 
@@ -400,7 +412,7 @@ class DrawWidget(QtGui.QGraphicsView):
         if oldId != newId:
             self.objects[newId] = self.objects[oldId]
             self.objects[newId].id = newId
-            self.removeObject(oldId)
+            # self.removeObject(oldId)
         self.setActive(newId)
 
     def updatePoint(self, uid, point_index, x, y):
