@@ -1,0 +1,2 @@
+ - builder: epydoc
+   exclude: [test_interfaces, _if_objects]

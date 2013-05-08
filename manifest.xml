@@ -15,6 +15,11 @@
   <depend package="dynamic_reconfigure" />
   <rosdep name="python-scipy"/>
   <rosdep name="python-qt-bindings"/>
+
+  <export>
+    <rosdoc config="rosdoc.yaml" />
+  </export>
+
 </package>
 
 
