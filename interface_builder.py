@@ -267,8 +267,7 @@ class Builder(QtGui.QWidget):
     def deleteClick(self):
         self.wid_draw.removeObject(self.wid_list.currentItem().text())
         self.wid_list.takeItem(self.wid_list.currentRow())
-        self.wid_draw.clear_active_point()
-        
+
     def polygonAdded(self, name):
         self.wid_list.addItem(name)
         
@@ -434,7 +433,10 @@ class DrawWidget(QtGui.QGraphicsView):
         obj = self.objects[name]
         self.scene.removeItem(obj.gfx_item)
         self.scene.removeItem(obj.text_item)
-        del obj
+        self.clear_active_point()
+        self.active_poly = ''
+
+        del self.objects[name]
 
     def make_top(self, item):
         item.setZValue(max([sib.zValue() for sib in self.scene.items()])+1)
