@@ -33,7 +33,7 @@ import rospy
 from PySide import QtGui, QtCore
 from math import hypot
 
-import sys
+import sys, argparse
 import numpy as np
 
 from projected_interface_builder.data_structures import PolygonInfo
@@ -44,21 +44,24 @@ FONT = QtGui.QFont('Decorative', 30)
 RULER_FONT = QtGui.QFont('Decorative', 12)
 
 class BuilderWindow(QtGui.QMainWindow):
-    def __init__(self):
+    def __init__(self, savefile=None, standalone=False):
         super(BuilderWindow, self).__init__()
         self.setWindowTitle('Interface Builder')
-        self.builder = Builder()
+        self.builder = Builder(standalone)
         self.setCentralWidget(self.builder)
         self.statusBar()
-        self.show()        
+        if savefile:
+            self.load_polygons(savefile)
+        self.show()
 
     def load_polygons(self, path):
         self.builder.load_polygons(path)
 
 class Builder(QtGui.QWidget):
     draw_mode = ' '
-    def __init__(self):
+    def __init__(self, standalone=False):
         super(Builder, self).__init__()
+        self._standalone = standalone
         self.initUI()
         self.show()        
         
@@ -232,12 +235,17 @@ class Builder(QtGui.QWidget):
         
     def startnode(self):
         self.but_send.setEnabled(True)
-        from projector_interface.srv import DrawPolygon, ClearPolygons
+        from projector_interface.srv import DrawPolygon, ClearPolygons, DrawPolygonResponse, ClearPolygonsResponse
         from visualization_msgs.msg import MarkerArray
 
         rospy.init_node('interface_builder', anonymous=True)
         self.but_startros.setEnabled(False)
         
+        if self._standalone:
+            rospy.loginfo('Starting dummy services')
+            rospy.Service('draw_polygon', DrawPolygon, lambda x: DrawPolygonResponse())
+            rospy.Service('clear_polygons', ClearPolygons, lambda x: ClearPolygonsResponse())
+
         self.polygon_proxy = rospy.ServiceProxy('/draw_polygon', DrawPolygon)
         rospy.loginfo("Waiting for polygon service")
         self.polygon_proxy.wait_for_service()
@@ -665,7 +673,13 @@ class DrawWidget(QtGui.QGraphicsView):
 
 if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)
-    gui = BuilderWindow()
-    if len(rospy.myargv()) == 2:
-        gui.load_polygons(rospy.myargv()[1])
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-s', '--standalone', action='store_const',
+        dest='standalone', const=True, default=False,
+        help='standalone mode (startup fake service servers)'
+    )
+    parser.add_argument('savefile', nargs='?', help='path to saved interface file')
+    args = parser.parse_args(args=rospy.myargv()[1:])
+
+    gui = BuilderWindow(args.savefile, args.standalone)
     sys.exit(app.exec_())
