@@ -600,17 +600,18 @@ class DrawWidget(QtGui.QGraphicsView):
 
         
     def mouseDoubleClickEvent(self, event):        
-        # polygon-ize the line list
-        if event.button() == QtCore.Qt.MouseButton.LeftButton:
-            poly = QtGui.QPolygon.fromList([l.line().p1().toPoint() for l in self.current_poly])
-            poly_container = PolygonInfo(QtGui.QPolygon(poly), name=self.generate_name())
-            self.add_polygon(poly_container)
-            self.polygonAdded.emit(poly_container.id)
-            self.polygon_active = False
-            self.remove_active_poly_items()
-            self.snap = False
-            self.last_click = None
-            self._ruler.hide()
+        if self.mouseMode == MOUSE_MODE_EDIT:
+            # polygon-ize the line list
+            if event.button() == QtCore.Qt.MouseButton.LeftButton:
+                poly = QtGui.QPolygon.fromList([l.line().p1().toPoint() for l in self.current_poly])
+                poly_container = PolygonInfo(QtGui.QPolygon(poly), name=self.generate_name())
+                self.add_polygon(poly_container)
+                self.polygonAdded.emit(poly_container.id)
+                self.polygon_active = False
+                self.remove_active_poly_items()
+                self.snap = False
+                self.last_click = None
+                self._ruler.hide()
                 
     def mouseMoveEvent(self, event):
         if self.mouseMode == MOUSE_MODE_EDIT:
