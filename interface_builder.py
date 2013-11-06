@@ -5,6 +5,7 @@ import roslib; roslib.load_manifest('projected_interface_builder')
 import rospy
 from PySide import QtGui, QtCore
 from math import hypot
+from pr2_python import pointclouds
 
 import sys
 import numpy as np
@@ -15,6 +16,9 @@ from projected_interface_builder import colors
 
 FONT = QtGui.QFont('Decorative', 30)
 RULER_FONT = QtGui.QFont('Decorative', 12)
+
+MOUSE_MODE_EDIT = 0
+MOUSE_MODE_TEST = 1
 
 class BuilderWindow(QtGui.QMainWindow):
     def __init__(self):
@@ -33,7 +37,7 @@ class Builder(QtGui.QWidget):
     def __init__(self):
         super(Builder, self).__init__()
         self.initUI()
-        self.show()        
+        self.show()
         
     def initUI(self):
         self.RES = 0.001
@@ -43,6 +47,7 @@ class Builder(QtGui.QWidget):
         self.wid_draw = DrawWidget()
         self.wid_draw.polygonAdded.connect(self.polygonAdded)
         self.wid_draw.mouseMoved.connect(self.mouseMoved)
+        self.wid_draw.mouseClick.connect(self.mouseClick)
         self.wid_draw.modeUpdate.connect(self.modeUpdate)
         self.wid_draw.set_resolution(self.RES)
 
@@ -63,6 +68,8 @@ class Builder(QtGui.QWidget):
         self.wid_tabs = QtGui.QTabWidget(polygon_tab_container)
         self.wid_tabs.setMinimumWidth(200)
         layout.addWidget(self.wid_tabs, 0, 1)
+
+        self.wid_tabs.currentChanged.connect(self.wid_draw.setMouseMode)
 
         self.wid_edit = QtGui.QTableWidget(2, 1, polygon_tab_container)
         # self.wid_edit.setColumnMinimumWidth
@@ -95,10 +102,15 @@ class Builder(QtGui.QWidget):
         ros_tab_layout = QtGui.QVBoxLayout()
         ros_tab_layout.addStretch(1)
         ros_tab_container.setLayout(ros_tab_layout)
-        self.wid_tabs.addTab(ros_tab_container, 'ROS')
+        self.wid_tabs.addTab(ros_tab_container, 'Test')
         
         self.but_startros = QtGui.QPushButton('Start Node', ros_tab_container)
         self.but_startros.clicked.connect(self.startnode)
+
+        self.radio_z_dir_towards = QtGui.QRadioButton('Z Points Towards', ros_tab_container)
+        self.radio_z_dir_away    = QtGui.QRadioButton('Z Points Away',    ros_tab_container)
+        self.radio_z_dir_away.setChecked(True)
+        self.radio_z_dir_towards.toggled.connect(self.directionChanged)
 
         self.but_send = QtGui.QPushButton('Send Polygons', ros_tab_container)
         self.but_send.clicked.connect(self.sendPolys)
@@ -113,6 +125,9 @@ class Builder(QtGui.QWidget):
         self.wid_resolution.textChanged[str].connect(self.resolutionChanged)
 
         ros_tab_layout.addWidget(self.but_startros                   )
+        ros_tab_layout.addWidget(QtGui.QLabel('Z Direction')         )
+        ros_tab_layout.addWidget(self.radio_z_dir_towards            )
+        ros_tab_layout.addWidget(self.radio_z_dir_away               )
         ros_tab_layout.addWidget(QtGui.QLabel('Interface frame id')  )
         ros_tab_layout.addWidget(self.wid_frame                      )
         ros_tab_layout.addWidget(QtGui.QLabel('Resolution (m/pixel)'))
@@ -132,6 +147,19 @@ class Builder(QtGui.QWidget):
         
         layout.setColumnMinimumWidth(0, 640)
         
+    def directionChanged(self):
+        trans = self.wid_draw.transform()
+        if self.radio_z_dir_towards.isChecked():
+            mat = np.eye(3).flatten().tolist()
+            mat[0] = -1.0
+            trans.setMatrix(*mat)
+        elif self.radio_z_dir_away.isChecked():
+            mat = np.eye(3).flatten().tolist()
+            mat[0] = 1.0
+            trans.setMatrix(*mat)
+        self.wid_draw.setTransform(trans, False)
+
+
     def save_polygons(self):
         fname, _ = QtGui.QFileDialog.getSaveFileName(self, 'Save')
         if len(fname) == 0: return
@@ -204,6 +232,7 @@ class Builder(QtGui.QWidget):
         self.but_send.setEnabled(True)
         from projector_interface.srv import DrawPolygon, ClearPolygons
         from visualization_msgs.msg import MarkerArray
+        from std_msgs.msg import Empty
 
         rospy.init_node('interface_builder', anonymous=True)
         self.but_startros.setEnabled(False)
@@ -216,6 +245,9 @@ class Builder(QtGui.QWidget):
         self.polygon_clear_proxy = rospy.ServiceProxy('/clear_polygons', ClearPolygons)
         rospy.loginfo("polygon clear service ready")
         self.polygon_viz = rospy.Publisher('/polygon_viz', MarkerArray)
+
+        self.cursor_pub = rospy.Publisher('intersected_points', pointclouds.PointCloud2)
+        self.click_pub = rospy.Publisher('/click', Empty)
 
         self.but_startros.setText('Node Running...')
         
@@ -235,9 +267,21 @@ class Builder(QtGui.QWidget):
         self.wid_list.addItem(name)
         
     def mouseMoved(self, location):
+        offset_x = float(self.offset_x.text())
+        offset_y = float(self.offset_y.text())
+
         res = float(self.wid_resolution.text())
-        message = '%s x=%0.4fm, y=%0.4f' % (self.draw_mode, location.x()*res, location.y()*res)
+        x, y = location.x()*res+offset_x, location.y()*res+offset_y
+        message = '%s x=%0.4fm, y=%0.4f' % (self.draw_mode, x, y)
         self.window().statusBar().showMessage(message)
+
+        if (self.wid_tabs.currentIndex() == MOUSE_MODE_TEST) and (self.but_send.isEnabled()):
+            cloud = pointclouds.xyz_array_to_pointcloud2(np.array([[x, y, 0]]), frame_id=self.wid_frame.text())
+            self.cursor_pub.publish(cloud)
+
+    def mouseClick(self):
+        if (self.wid_tabs.currentIndex() == MOUSE_MODE_TEST) and (self.but_send.isEnabled()):
+            self.click_pub.publish()
 
     def modeUpdate(self, mode):
         self.draw_mode = mode
@@ -307,6 +351,7 @@ class DrawWidget(QtGui.QGraphicsView):
     current_poly = []
     polygonAdded = QtCore.Signal(str)
     mouseMoved = QtCore.Signal(QtCore.QPointF)
+    mouseClick = QtCore.Signal()
     modeUpdate = QtCore.Signal(str)
     active_poly = ''
     snap = False
@@ -342,6 +387,8 @@ class DrawWidget(QtGui.QGraphicsView):
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
+        self.mouseMode = MOUSE_MODE_EDIT
+
         self.centerOn(0, 0)
     
     def set_resolution(self, res):
@@ -364,6 +411,9 @@ class DrawWidget(QtGui.QGraphicsView):
     def clear_active_point(self):
         if self.active_point:
             self.scene.removeItem(self.active_point)
+
+    def setMouseMode(self, index):
+        self.mouseMode = index
 
     def updateName(self, pid, newName):
         self.objects[pid].name = newName
@@ -536,6 +586,9 @@ class DrawWidget(QtGui.QGraphicsView):
             button = QtCore.Qt.MouseButton.LeftButton
             self.setDragMode(QtGui.QGraphicsView.DragMode.NoDrag)
 
+        if (self.mouseMode == MOUSE_MODE_TEST) and (event.button() == QtCore.Qt.MouseButton.LeftButton):
+            self.mouseClick.emit()
+
         super(DrawWidget, self).mouseReleaseEvent(QtGui.QMouseEvent(
             event.type(),
             event.pos(),
@@ -543,8 +596,8 @@ class DrawWidget(QtGui.QGraphicsView):
             event.buttons(),
             event.modifiers(),
         ))
-
         self.drag_start = False
+
         
     def mouseDoubleClickEvent(self, event):        
         # polygon-ize the line list
@@ -560,27 +613,30 @@ class DrawWidget(QtGui.QGraphicsView):
             self._ruler.hide()
                 
     def mouseMoveEvent(self, event):
-        pos = self.mapToScene(event.pos())
-        self.cursorx = pos.x()
-        self.cursory = pos.y()
-        endpoint = self.get_line_endpoint(pos, event.modifiers(), highlight=True)
-        self.mouseMoved.emit(endpoint)
+        if self.mouseMode == MOUSE_MODE_EDIT:
+            pos = self.mapToScene(event.pos())
+            self.cursorx = pos.x()
+            self.cursory = pos.y()
+            endpoint = self.get_line_endpoint(pos, event.modifiers(), highlight=True)
+            self.mouseMoved.emit(endpoint)
 
-        if self.polygon_active:
-            # Note: line() returns a *copy* of the backing line, so changing it doesn't do anything
-            line = self.active_line.line()
-            line.setP2(endpoint)
-            self.active_line.setLine(line)
+            if self.polygon_active:
+                # Note: line() returns a *copy* of the backing line, so changing it doesn't do anything
+                line = self.active_line.line()
+                line.setP2(endpoint)
+                self.active_line.setLine(line)
 
-            # update the ruler
-            self._ruler.setPos((line.p1() + line.p2())/2)
-            rise, run = line.dx(), line.dy()
-            if rise != 0:
-                angle = np.degrees(np.arctan(run/rise))
-                self._ruler.setRotation(angle)
-            dist = np.hypot(rise, run)*self.res
-            self._ruler.setPlainText('%0.4fm' % dist)
-            self._ruler.show()
+                # update the ruler
+                self._ruler.setPos((line.p1() + line.p2())/2)
+                rise, run = line.dx(), line.dy()
+                if rise != 0:
+                    angle = np.degrees(np.arctan(run/rise))
+                    self._ruler.setRotation(angle)
+                dist = np.hypot(rise, run)*self.res
+                self._ruler.setPlainText('%0.4fm' % dist)
+                self._ruler.show()
+        elif self.mouseMode == MOUSE_MODE_TEST:
+            self.mouseMoved.emit(self.mapToScene(event.pos()))
         super(DrawWidget, self).mouseMoveEvent(event)
 
     def keyPressEvent(self, event):
