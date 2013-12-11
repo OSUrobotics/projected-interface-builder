@@ -271,7 +271,8 @@ class Builder(QtGui.QWidget):
         offset_y = float(self.offset_y.text())
 
         res = float(self.wid_resolution.text())
-        x, y = location.x()*res+offset_x, location.y()*res+offset_y
+        # Qt defines 0,0 in the upper left, so, and down as +y, so flip the y
+        x, y = location.x()*res+offset_x, -location.y()*res+offset_y
         message = '%s x=%0.4fm, y=%0.4f' % (self.draw_mode, x, y)
         self.window().statusBar().showMessage(message)
 
@@ -637,7 +638,10 @@ class DrawWidget(QtGui.QGraphicsView):
                 self._ruler.setPlainText('%0.4fm' % dist)
                 self._ruler.show()
         elif self.mouseMode == MOUSE_MODE_TEST:
-            self.mouseMoved.emit(self.mapToScene(event.pos()))
+            # Qt defines 0,0 in the upper left, so, and down as +y, so flip the y
+            pos = event.pos()
+            # pos.setY(-pos.y())
+            self.mouseMoved.emit(self.mapToScene(pos))
         super(DrawWidget, self).mouseMoveEvent(event)
 
     def keyPressEvent(self, event):
