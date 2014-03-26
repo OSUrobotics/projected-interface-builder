@@ -35,6 +35,7 @@ from projected_interface_builder.colors import *
 from projected_interface_builder.convert_utils import QtPolyToROS, QtRectToPoly
 from projected_interface_builder.data_structures import PolygonInfo
 from projected_interface_builder import colors
+from std_msgs.msg import ColorRGBA
 
 from threading import RLock
 
@@ -69,6 +70,7 @@ class ProjectedInterface(object):
         self.z = float(data['offset_z'])
         self.frame_id = data['frame_id']
         self.polygons = data['polygons']
+        self.polygon_colors = dict(zip(self.polygons.keys(), len(self.polygons.keys())*[colors.WHITE]))
         self.dispatch_rate = dispatch_rate
         
     def start(self):
@@ -136,7 +138,7 @@ class ProjectedInterface(object):
         ps = QtPolyToROS(polygon.polygon, polygon.id, self.x, self.y, self.z, self.res, self.frame_id)
         ps.header.stamp = rospy.Time.now()
         text_rect = QtPolyToROS(QtRectToPoly(polygon.text_rect), '', self.x, self.y, self.z, self.res, self.frame_id)
-        self.polygon_proxy(polygon.id, polygon.name, ps, text_rect.polygon, colors.WHITE)
+        self.polygon_proxy(polygon.id, polygon.name, ps, text_rect.polygon, self.polygon_colors[polygon.id])
             
     def set_hidden(self, polygon):
         '''Hides a polygon. Has no effect if the polygon is already hidden.'''
@@ -146,6 +148,12 @@ class ProjectedInterface(object):
         '''Unhides a polygon. Has no effect if the polygon is not hidden.'''
         if polygon in self._hidden:
             self._hidden.remove(polygon)
+
+    def set_color(self, poly_id, colorRGB):
+        self.polygon_colors[poly_id] = ColorRGBA(*list(colorRGB) + [0])
+
+    def reset_color(self, poly_id):
+        self.polygon_colors[poly_id] = colors.WHITE
 
     def clear_hidden(self):
         '''Unhides all polygons.'''
