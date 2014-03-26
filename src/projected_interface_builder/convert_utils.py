@@ -37,7 +37,8 @@ def QtPolyToROS(poly, name, x, y, z, res, frame_id):
     header.frame_id = frame_id
     ps = PolygonStamped(header=header)
     for pt in poly:
-        ps.polygon.points.append(Point(pt.x()*res+x, pt.y()*res+y, z))
+        # Qt defines 0,0 in the upper left, so, and down as +y, so flip the y
+        ps.polygon.points.append(Point(pt.x()*res+x, -pt.y()*res+y, z))
     return ps
 
 def QtRectToPoly(rect):
