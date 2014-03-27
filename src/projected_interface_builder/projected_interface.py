@@ -41,6 +41,7 @@ from threading import RLock
 
 from dynamic_reconfigure.server import Server
 from projected_interface_builder.cfg import InterfaceConfig
+import tf
 
 class ProjectedInterface(object):
     '''
@@ -90,7 +91,17 @@ class ProjectedInterface(object):
         self.dispatch_rate = rospy.Rate(self.dispatch_rate)
         reconfig_srv = Server(InterfaceConfig, self._reconfig_cb)
 
+        self._wait_for_frame()
         self.publish_polygons()
+
+    def _wait_for_frame(self):
+        r = rospy.Rate(10)
+        tfl = tf.TransformListener()
+        frame = self.frame_id.strip('/')
+        rospy.loginfo('Waiting for frame %s to exist' % frame)
+        while (not tfl.frameExists(frame)) and (not rospy.is_shutdown()):
+            r.sleep()
+        rospy.loginfo('Frame ready')
 
     def _reconfig_cb(self, config, level):
         '''Callback for dynamic reconfigure. Don't overwrite this'''
