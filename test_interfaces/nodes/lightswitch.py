@@ -1,16 +1,9 @@
+#!/usr/bin/env python
 import roslib; roslib.load_manifest('projected_interface_builder')
 from projected_interface_builder.projected_interface import ProjectedInterface
 from projected_interface_builder.data_structures import PolygonInfo
 import rospy
 
-#########
-# chdown
-# chup
-# l_0
-# l_1
-# onoff
-# slash
-##########
 class LightswitchInterface(ProjectedInterface):
     active_switch = None
     switch_on = dict(sw_bed=False, sw_bath=False)
@@ -25,6 +18,7 @@ class LightswitchInterface(ProjectedInterface):
         self.hideonoff()
 
     def hideonoff(self):
+        self._wait_for_frame()
         self.set_hidden('on')
         self.set_hidden('off')
 
@@ -62,7 +56,7 @@ class LightswitchInterface(ProjectedInterface):
 
 if __name__ == '__main__':
     rospy.init_node('tv_interface')
-    interf = LightswitchInterface('../interfaces/lightswitch.pkl')
+    interf = LightswitchInterface('/home/lazewatd/ros_ws/projected_interface_builder/test_interfaces/interfaces/lightswitch.pkl')
     interf.start()
     rospy.spin()
     interf.maybe_write_changes()
