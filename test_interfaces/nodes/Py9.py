@@ -27,20 +27,37 @@ import cPickle
 class Predictor(object):
     seq = []
     sent = ['.']
-    def __init__(self, lettermap, prune=False, words='/usr/share/dict/words'):
+    def __init__(self, bigram_path, lettermap, prune=False, words='/usr/share/dict/words'):
         self.prune = prune
         self.lettermap = lettermap
         with open(words,'r') as f:
             self.words = f.readlines()
         
-        with open('bigrams.pkl', 'r') as bigr_file:
+        with open(bigram_path, 'r') as bigr_file:
             self.bigrams = cPickle.load(bigr_file)
             
     def word_score(self, word):
         scores = self.bigrams[self.sent[-1]]
         return scores[word] if word in scores else 0.0
         
-        
+    def compare_words(self, w1, w2):
+        w1_score = self.word_score(w1)
+        w2_score = self.word_score(w2)
+        if w1_score > w2_score:
+            return 1
+        elif w1_score < w2_score:
+            return -1
+        else:
+            w1_len = len(w1)
+            w2_len = len(w2)
+            if w1_len < w2_len:
+                return 1
+            elif w1_len > w2_len:
+                return -1
+            else:
+                return 0
+            
+
     def seq_to_letters(self, seq):
         return [self.lettermap[n] for n in seq]
             
@@ -48,7 +65,7 @@ class Predictor(object):
         words = self.words
         for i, letters in enumerate(self.seq_to_letters(seq)):
             words = filter(lambda w: w[i].upper() in letters.upper(), words)
-        words = sorted([w.strip() for w in words], key=self.word_score, reverse=True)
+        words = sorted([w.strip() for w in words], cmp=self.compare_words, reverse=True)
         if self.prune:
             words = filter(lambda w: self.word_score(w) > 0, words)
         return words
