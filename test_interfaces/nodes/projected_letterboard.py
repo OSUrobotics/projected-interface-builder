@@ -11,7 +11,7 @@ from Py9 import Predictor
 
 class LetterboardInterface(ProjectedInterface):
     current_words = []
-    def __init__(self, polygon_file):
+    def __init__(self, polygon_file, bigram_file):
         super(LetterboardInterface, self).__init__(polygon_file)
 
         self.sound_client = SoundClient()
@@ -31,7 +31,7 @@ class LetterboardInterface(ProjectedInterface):
         for i in xrange(1,7):
             self.choice_boxes.append(self.polygons['choice%s' % i])
 
-        self.predictor = Predictor(dict(zip(self.letter_boxes, self.letter_boxes)))
+        self.predictor = Predictor(bigram_file, dict(zip(self.letter_boxes, self.letter_boxes)))
         for box in self.letter_boxes:
             self.register_callback(box, self.letter_cb)
 
@@ -91,8 +91,17 @@ class LetterboardInterface(ProjectedInterface):
         super(LetterboardInterface, self).maybe_write_changes()
 
 if __name__ == '__main__':
+    import sys
+    if len(rospy.myargv()) != 3:
+        print 'Usage: projected_letterboard.py interface_file bigram_file'
+        sys.exit(1)
+
+    interface_file = rospy.myargv()[1]
+    bigram_file = rospy.myargv()[2]
+    # '/home/lazewatd/ros_ws/projected_interface_builder/test_interfaces/nodes/bigrams.pkl'
     rospy.init_node('letterboard_interface')
-    interf = LetterboardInterface('/home/lazewatd/ros_ws/projected_interface_builder/test_interfaces/interfaces/physical_copy_choices_new.pkl')
+    # interf = LetterboardInterface('/home/lazewatd/ros_ws/projected_interface_builder/test_interfaces/interfaces/physical_copy_choices_new.pkl')
+    interf = LetterboardInterface(interface_file, bigram_file)
     interf.start()
     rospy.spin()
     interf.maybe_write_changes()
