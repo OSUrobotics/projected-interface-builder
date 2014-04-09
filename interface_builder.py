@@ -40,6 +40,7 @@ import numpy as np
 from projected_interface_builder.data_structures import PolygonInfo
 from projected_interface_builder import colors
 
+import os
 
 FONT = QtGui.QFont('Decorative', 30)
 RULER_FONT = QtGui.QFont('Decorative', 12)
@@ -50,18 +51,29 @@ MOUSE_MODE_TEST = 1
 class BuilderWindow(QtGui.QMainWindow):
     def __init__(self, savefile=None, standalone=False):
         super(BuilderWindow, self).__init__()
-        self.setWindowTitle('Interface Builder')
+        self._setWindowTitle()
         self.builder = Builder(standalone)
+        self.builder.fileLoaded.connect(self._setWindowTitle)
         self.setCentralWidget(self.builder)
         self.statusBar()
+        self.file_loaded = False
         if savefile:
             self.load_polygons(savefile)
+            self.file_loaded = True
+
         self.show()
+
+    def _setWindowTitle(self, filename=''):
+        title = 'Interface Builder'
+        if filename:
+            title += ': ' + filename
+        self.setWindowTitle(title)
 
     def load_polygons(self, path):
         self.builder.load_polygons(path)
 
 class Builder(QtGui.QWidget):
+    fileLoaded = QtCore.Signal(str)
     draw_mode = ' '
     def __init__(self, standalone=False):
         super(Builder, self).__init__()
@@ -203,6 +215,7 @@ class Builder(QtGui.QWidget):
                 offset_y   = self.offset_y.text(),
                 offset_z   = self.offset_z.text()
             ), f)
+        self._setWindowTitle(os.path.split(fname)[-1])
             
     def load_polygons_click(self):
         fname, _ = QtGui.QFileDialog.getOpenFileName(self, 'Load')
@@ -236,6 +249,7 @@ class Builder(QtGui.QWidget):
 
             for name in sorted(self.wid_draw.objects.keys()):
                 self.polygonAdded(name)
+        self.fileLoaded.emit(os.path.split(fname)[-1])
                     
     def sendPolys(self):
         from projected_interface_builder.convert_utils import QtPolyToROS, QtRectToPoly, toMarker
