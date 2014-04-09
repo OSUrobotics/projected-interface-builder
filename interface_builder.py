@@ -53,15 +53,47 @@ class BuilderWindow(QtGui.QMainWindow):
         super(BuilderWindow, self).__init__()
         self._setWindowTitle()
         self.builder = Builder(standalone)
-        self.builder.fileLoaded.connect(self._setWindowTitle)
+        self.builder.fileLoaded.connect(self._handleFileLoaded)
+        self.builder.fileSaved.connect(self._handleFileSaved)
+        self.builder.interfaceChanged.connect(self._handleInterfaceChanged)
         self.setCentralWidget(self.builder)
         self.statusBar()
         self.file_loaded = False
+        self.unsaved_changes = False
         if savefile:
             self.load_polygons(savefile)
             self.file_loaded = True
 
         self.show()
+
+    def closeEvent(self, event):
+        if self.unsaved_changes:
+            save = QtGui.QMessageBox.question(
+                self,
+                'Unsaved Changes',
+                'You have unsaved changes. Save?',
+                QtGui.QMessageBox.Yes | QtGui.QMessageBox.No, QtGui.QMessageBox.Yes
+            )
+            if save == QtGui.QMessageBox.Yes:
+                self.builder.save_polygons(self.builder.savefile)
+        QtGui.QMainWindow.closeEvent(self, event)
+
+    def _handleFileSaved(self, filename):
+        self.file_loaded = True
+        self.unsaved_changes = False
+        self._setWindowTitle(filename)
+
+    def _handleFileLoaded(self, filename):
+        self.file_loaded = True
+        self.unsaved_changes = False
+        self._setWindowTitle(filename)
+
+    def _handleInterfaceChanged(self):
+        self.unsaved_changes = True
+        if self.file_loaded:
+            title = self.windowTitle()
+            if not title.endswith('*'):
+                self.setWindowTitle(self.windowTitle() + ' *')
 
     def _setWindowTitle(self, filename=''):
         title = 'Interface Builder'
@@ -73,13 +105,18 @@ class BuilderWindow(QtGui.QMainWindow):
         self.builder.load_polygons(path)
 
 class Builder(QtGui.QWidget):
-    fileLoaded = QtCore.Signal(str)
+    fileLoaded       = QtCore.Signal(str)
+    fileSaved        = QtCore.Signal(str)
+    interfaceChanged = QtCore.Signal()
+    interfaceSaved   = QtCore.Signal()
     draw_mode = ' '
     def __init__(self, standalone=False):
         super(Builder, self).__init__()
         self._standalone = standalone
         self.initUI()
         self.show()
+        self._changePoly = False
+        self.savefile = None
         
     def initUI(self):
         self.RES = 0.001
@@ -164,6 +201,10 @@ class Builder(QtGui.QWidget):
         self.offset_y = QtGui.QLineEdit('0.0', ros_tab_container)
         self.offset_z = QtGui.QLineEdit('0.0', ros_tab_container)
                 
+        self.offset_x.textChanged.connect(lambda : self.interfaceChanged.emit())
+        self.offset_y.textChanged.connect(lambda : self.interfaceChanged.emit())
+        self.offset_z.textChanged.connect(lambda : self.interfaceChanged.emit())
+
         self.wid_resolution.textChanged[str].connect(self.resolutionChanged)
 
         ros_tab_layout.addWidget(self.but_startros                   )
@@ -200,10 +241,11 @@ class Builder(QtGui.QWidget):
             mat[0] = 1.0
             trans.setMatrix(*mat)
         self.wid_draw.setTransform(trans, False)
+        self.interfaceChanged.emit()
 
-
-    def save_polygons(self):
-        fname, _ = QtGui.QFileDialog.getSaveFileName(self, 'Save')
+    def save_polygons(self, fname=None):
+        if not fname:
+            fname, _ = QtGui.QFileDialog.getSaveFileName(self, 'Save')
         if len(fname) == 0: return
         import pickle
         with open(fname, 'w') as f:
@@ -215,7 +257,8 @@ class Builder(QtGui.QWidget):
                 offset_y   = self.offset_y.text(),
                 offset_z   = self.offset_z.text()
             ), f)
-        self._setWindowTitle(os.path.split(fname)[-1])
+        self.fileSaved.emit(os.path.split(fname)[-1])
+        self.savefile = fname
             
     def load_polygons_click(self):
         fname, _ = QtGui.QFileDialog.getOpenFileName(self, 'Load')
@@ -250,6 +293,7 @@ class Builder(QtGui.QWidget):
             for name in sorted(self.wid_draw.objects.keys()):
                 self.polygonAdded(name)
         self.fileLoaded.emit(os.path.split(fname)[-1])
+        self.savefile = fname
                     
     def sendPolys(self):
         from projected_interface_builder.convert_utils import QtPolyToROS, QtRectToPoly, toMarker
@@ -309,13 +353,16 @@ class Builder(QtGui.QWidget):
             FONT.setPointSize(30-float(text)*12000)
         except Exception:
             pass
+        self.interfaceChanged.emit()
         
     def deleteClick(self):
         self.wid_draw.removeObject(self.wid_list.currentItem().text())
         self.wid_list.takeItem(self.wid_list.currentRow())
+        self.interfaceChanged.emit()
 
     def polygonAdded(self, name):
         self.wid_list.addItem(name)
+        self.interfaceChanged.emit()
         
     def mouseMoved(self, location):
         offset_x = float(self.offset_x.text())
@@ -339,6 +386,7 @@ class Builder(QtGui.QWidget):
         self.draw_mode = mode
 
     def listItemSelectionChanged(self):
+        self._changePoly = True
         item = self.wid_list.currentItem()
         poly = self.wid_draw.objects[item.text()]
         self.wid_draw.clear_active_point()
@@ -352,16 +400,22 @@ class Builder(QtGui.QWidget):
             x = point.x()*res
             y = point.y()*res
             self.wid_edit.setItem(px+2, 0, QtGui.QTableWidgetItem('(%0.4f, %0.4f)' % (x, y)))
-        
+        self._changePoly = False
+
     def updateName(self, text):
         text = text.replace('\\n', '\n')
-        self.wid_draw.updateName(self.wid_list.currentItem().text(), text)
+        if text != self.wid_list.currentItem().text():
+            self.wid_draw.updateName(self.wid_list.currentItem().text(), text)
+            return True
+        return False
 
     def updateId(self, text):
         old_id = self.wid_list.currentItem().text()
-
-        self.wid_draw.updateId(old_id, text)
-        self.wid_list.currentItem().setText(text)
+        if old_id != text:
+            self.wid_draw.updateId(old_id, text)
+            self.wid_list.currentItem().setText(text)
+            return True
+        return False
         
     def keyPressEvent(self, event):
         if event.key() in (16777248, 16777216):
@@ -373,19 +427,22 @@ class Builder(QtGui.QWidget):
     
     def cellChanged(self, row, col):
         item = self.wid_edit.item(row, col)
+        changed = False
         if row == 0:
-            self.updateName(item.text())
+            changed = self.updateName(item.text())
         elif row == 1:
-            self.updateId(item.text())
+            changed = self.updateId(item.text())
         else:
             res = float(self.wid_resolution.text())
             try:
                 exec('x,y=%s' % item.text())
-                self.wid_draw.updatePoint(self.wid_list.currentItem().text(), row-2, x/res, y/res)
+                changed = self.wid_draw.updatePoint(self.wid_list.currentItem().text(), row-2, x/res, y/res)
                 # self.wid_draw.update_active_point(QtCore.QPoint(x,y))
                 self.wid_draw.clear_active_point()
             except Exception, e:
                 print e
+        if changed and not self._changePoly:
+            self.interfaceChanged.emit()
                 
     def itemSelectionChanged(self):
         item = self.wid_edit.currentItem()
@@ -489,10 +546,13 @@ class DrawWidget(QtGui.QGraphicsView):
 
     def updatePoint(self, uid, point_index, x, y):
         pt = self.objects[uid].polygon[point_index]
-        pt.setX(x)
-        pt.setY(y)
-        self.objects[uid].polygon.replace(point_index, pt)
-        self.objects[uid].gfx_item.setPolygon(self.objects[uid].polygon)
+        if not pt.x() == x or not pt.y() == y:
+            pt.setX(x)
+            pt.setY(y)
+            self.objects[uid].polygon.replace(point_index, pt)
+            self.objects[uid].gfx_item.setPolygon(self.objects[uid].polygon)
+            return True
+        return False
 
     def removeObject(self, name):
         obj = self.objects[name]
