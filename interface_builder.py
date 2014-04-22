@@ -28,14 +28,17 @@
 
 from __future__ import division
 
-import roslib; roslib.load_manifest('projected_interface_builder')
-import rospy
+PKG_NAME = 'projected_interface_builder'
+import roslib; roslib.load_manifest(PKG_NAME)
+import rospy, rospkg
 from PySide import QtGui, QtCore
 from math import hypot
 from pr2_python import pointclouds
 
 import sys, argparse
 import numpy as np
+
+from functools import partial
 
 from projected_interface_builder.data_structures import PolygonInfo
 from projected_interface_builder import colors
@@ -48,18 +51,26 @@ RULER_FONT = QtGui.QFont('Decorative', 12)
 MOUSE_MODE_EDIT = 0
 MOUSE_MODE_TEST = 1
 
+MODE_AXIS_ALIGN = '|'
+MODE_SNAP_TO_GRID = '#'
+MODE_NONE = ' '
+
 class BuilderWindow(QtGui.QMainWindow):
     def __init__(self, savefile=None, standalone=False):
         super(BuilderWindow, self).__init__()
+        self.rp = rospkg.RosPack()
         self._setWindowTitle()
         self.builder = Builder(standalone)
         self.builder.fileLoaded.connect(self._handleFileLoaded)
         self.builder.fileSaved.connect(self._handleFileSaved)
         self.builder.interfaceChanged.connect(self._handleInterfaceChanged)
+        self.builder.wid_draw.modeUpdate.connect(self._updateDrawMode)
         self.setCentralWidget(self.builder)
         self.statusBar()
         self.file_loaded = False
         self.unsaved_changes = False
+        self.setupToolbar()
+
         if savefile:
             self.load_polygons(savefile)
             self.file_loaded = True
@@ -77,6 +88,96 @@ class BuilderWindow(QtGui.QMainWindow):
             if save == QtGui.QMessageBox.Yes:
                 self.builder.save_polygons(self.builder.savefile)
         QtGui.QMainWindow.closeEvent(self, event)
+
+    def _updateDrawMode(self, mode):
+        self.act_sta.setChecked(False)
+        self.act_stg.setChecked(False)
+
+        if mode == MODE_AXIS_ALIGN:
+            self.act_sta.setChecked(True)
+        elif mode == MODE_SNAP_TO_GRID:
+            self.act_stg.setChecked(True)
+
+    def _get_icon(self, name):
+        path = os.path.join(self.rp.get_path('projected_interface_builder'), 'icons', '%s.svg' % name)
+        return QtGui.QIcon(path)
+
+    def setupToolbar(self):
+        self.toolbar = self.addToolBar('Toolbar')
+        self.act_open = self.toolbar.addAction(QtGui.QIcon.fromTheme('document-open'), 'Open')
+        self.act_save = self.toolbar.addAction(QtGui.QIcon.fromTheme('document-save'), 'Save')
+        self.act_savea = self.toolbar.addAction(QtGui.QIcon.fromTheme('document-save-as'), 'Save As')
+        self.toolbar.addSeparator()
+        self.act_stg = self.toolbar.addAction(self._get_icon('grid'), 'Snap to Grid')
+        self.act_sta = self.toolbar.addAction(self._get_icon('axis'), 'Snap to Axis')
+        self.toolbar.addSeparator()
+        self.act_add_rect  = self.toolbar.addAction(self._get_icon('rect'), 'Add Rectangle (F1)')
+        self.act_add_poly  = self.toolbar.addAction(self._get_icon('poly'), 'Add Polygon (F2)')
+        self.act_add_point = self.toolbar.addAction(self._get_icon('point'),'Add Points (F3)')
+        self.toolbar.addSeparator()
+        self.act_sel_obj = self.toolbar.addAction(self._get_icon('select_obj'),'Select Object (F4)')
+        self.act_sel_pt = self.toolbar.addAction(self._get_icon('select_pt'),  'Select Point (F5)')
+        self.act_sel_txt = self.toolbar.addAction(QtGui.QIcon.fromTheme('format-text-italic'),  'Select Text (F6)')
+        self.toolbar.addSeparator()
+        self.act_help = self.toolbar.addAction(QtGui.QIcon.fromTheme('help-contents'), 'Help')
+
+        # action groups
+        group_snap = QtGui.QActionGroup(self)
+        group_snap.addAction(self.act_stg)
+        group_snap.addAction(self.act_sta)
+
+        group_ins_sel = QtGui.QActionGroup(self)
+        group_ins_sel.addAction(self.act_add_rect)
+        group_ins_sel.addAction(self.act_add_poly)
+        group_ins_sel.addAction(self.act_add_point)
+        group_ins_sel.addAction(self.act_sel_obj)
+        group_ins_sel.addAction(self.act_sel_pt)
+        group_ins_sel.addAction(self.act_sel_txt)
+
+
+
+        self.act_stg.setShortcut('Ctrl+Shift')
+        self.act_stg.setCheckable(True)
+        self.act_sta.setCheckable(True)
+
+        self.act_add_rect.setShortcut('F1')
+        self.act_add_poly.setShortcut('F2')
+        self.act_add_point.setShortcut('F3')
+        self.act_add_rect.setCheckable(True)
+        self.act_add_poly.setCheckable(True)
+        self.act_add_point.setCheckable(True)
+
+        self.act_sel_obj.setCheckable(True)
+        self.act_sel_obj.setShortcut('F4')
+        # self.act_sel_obj.triggered.connect()
+
+        self.act_sel_pt.setCheckable(True)
+        self.act_sel_pt.setShortcut('F5')
+        # self.act_sel_pt.triggered.connect()
+
+        self.act_sel_txt.setCheckable(True)
+        self.act_sel_txt.setShortcut('F6')
+        # self.act_sel_txt.triggered.connect()
+
+        self.act_open.triggered.connect(self.builder.load_polygons_click)
+        self.act_open.setShortcut('Ctrl+O')
+
+        self.act_save.triggered.connect(self._save)
+        self.act_save.setShortcut('Ctrl+S')
+
+        self.act_savea.triggered.connect(self._save_as)
+        self.act_savea.setShortcut('Ctrl+Shift+S')
+
+        self.act_savea.triggered.connect(self.builder.save_polygons)
+        url = roslib.manifest.parse_file(roslib.manifest.manifest_file(PKG_NAME)).url
+        self.act_help.triggered.connect(lambda : QtGui.QDesktopServices.openUrl(url))
+        # import pdb; pdb.set_trace()
+
+    def _save(self):
+        self.builder.save_polygons(fname=self.builder.savefile)
+
+    def _save_as(self):
+        self.builder.save_polygons(fname=None)
 
     def _handleFileSaved(self, filename):
         self.file_loaded = True
@@ -130,18 +231,18 @@ class Builder(QtGui.QWidget):
         self.wid_draw.modeUpdate.connect(self.modeUpdate)
         self.wid_draw.set_resolution(self.RES)
 
-        self.but_save = QtGui.QPushButton('Save', self)
-        self.but_load = QtGui.QPushButton('Load', self)
+        # self.but_save = QtGui.QPushButton('Save', self)
+        # self.but_load = QtGui.QPushButton('Load', self)
         
-        self.but_save.clicked.connect(self.save_polygons)
-        self.but_load.clicked.connect(self.load_polygons_click)
+        # self.but_save.clicked.connect(self.save_polygons)
+        # self.but_load.clicked.connect(self.load_polygons_click)
         
         # Widgets for the polygon tab
         polygon_tab_container = QtGui.QWidget()
         self.wid_list = QtGui.QListWidget()
         self.wid_list.itemSelectionChanged.connect(self.listItemSelectionChanged)
         
-        self.but_delete = QtGui.QPushButton('Delete', polygon_tab_container)
+        self.but_delete = QtGui.QPushButton('Delete Polygon', polygon_tab_container)
         self.but_delete.clicked.connect(self.deleteClick)
         
         self.wid_tabs = QtGui.QTabWidget(polygon_tab_container)
@@ -223,10 +324,10 @@ class Builder(QtGui.QWidget):
         ros_tab_layout.addWidget(self.offset_z                       )
         ros_tab_layout.addWidget(self.but_send                       )
         
-        layout.addWidget(self.wid_tabs, 0, 1, 2, 2)
+        layout.addWidget(self.wid_tabs, 0, 1, 3, 2)
         layout.addWidget(self.wid_draw, 0, 0, 3, 1)
-        layout.addWidget(self.but_save, 2, 1)
-        layout.addWidget(self.but_load, 2, 2)
+        # layout.addWidget(self.but_save, 2, 1)
+        # layout.addWidget(self.but_load, 2, 2)
         
         layout.setColumnMinimumWidth(0, 640)
         
@@ -769,7 +870,7 @@ class DrawWidget(QtGui.QGraphicsView):
 
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Control:
-            self.modeUpdate.emit('|')
+            self.modeUpdate.emit(MODE_AXIS_ALIGN)
         if event.key() == QtCore.Qt.Key.Key_Escape:
             if self.text_move:
                 self.text_move = False
@@ -780,10 +881,10 @@ class DrawWidget(QtGui.QGraphicsView):
 
             self.snap = False
         elif event.key() ==  QtCore.Qt.Key.Key_Shift:
-            self.modeUpdate.emit('#')
+            self.modeUpdate.emit(MODE_SNAP_TO_GRID)
         
     def keyReleaseEvent(self, event):
-        self.modeUpdate.emit(' ')
+        self.modeUpdate.emit(MODE_NONE)
 
     def remove_active_poly_items(self):
         for line in self.current_poly:
