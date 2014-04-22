@@ -134,39 +134,40 @@ class BuilderWindow(QtGui.QMainWindow):
         group_ins_sel.addAction(self.act_sel_pt)
         group_ins_sel.addAction(self.act_sel_txt)
 
-
-
+        # set action shortcuts
         self.act_stg.setShortcut('Ctrl+Shift')
-        self.act_stg.setCheckable(True)
-        self.act_sta.setCheckable(True)
-
         self.act_add_rect.setShortcut('F1')
         self.act_add_poly.setShortcut('F2')
         self.act_add_point.setShortcut('F3')
+        self.act_sel_obj.setShortcut('F4')
+        self.act_sel_pt.setShortcut('F5')
+        self.act_sel_txt.setShortcut('F6')
+        self.act_open.setShortcut('Ctrl+O')
+        self.act_save.setShortcut('Ctrl+S')
+        self.act_savea.setShortcut('Ctrl+Shift+S')
+
+
+        self.act_stg.setCheckable(True)
+        self.act_sta.setCheckable(True)
+
         self.act_add_rect.setCheckable(True)
         self.act_add_poly.setCheckable(True)
         self.act_add_point.setCheckable(True)
 
         self.act_sel_obj.setCheckable(True)
-        self.act_sel_obj.setShortcut('F4')
         # self.act_sel_obj.triggered.connect()
 
         self.act_sel_pt.setCheckable(True)
-        self.act_sel_pt.setShortcut('F5')
         # self.act_sel_pt.triggered.connect()
 
         self.act_sel_txt.setCheckable(True)
-        self.act_sel_txt.setShortcut('F6')
         # self.act_sel_txt.triggered.connect()
 
         self.act_open.triggered.connect(self.builder.load_polygons_click)
-        self.act_open.setShortcut('Ctrl+O')
 
         self.act_save.triggered.connect(self._save)
-        self.act_save.setShortcut('Ctrl+S')
 
         self.act_savea.triggered.connect(self._save_as)
-        self.act_savea.setShortcut('Ctrl+Shift+S')
 
         self.act_savea.triggered.connect(self.builder.save_polygons)
         url = roslib.manifest.parse_file(roslib.manifest.manifest_file(PKG_NAME)).url
