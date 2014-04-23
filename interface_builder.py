@@ -108,8 +108,8 @@ class BuilderWindow(QtGui.QMainWindow):
         self.act_save = self.toolbar.addAction(QtGui.QIcon.fromTheme('document-save'), 'Save')
         self.act_savea = self.toolbar.addAction(QtGui.QIcon.fromTheme('document-save-as'), 'Save As')
         self.toolbar.addSeparator()
-        self.act_stg = self.toolbar.addAction(self._get_icon('grid'), 'Snap to Grid')
-        self.act_sta = self.toolbar.addAction(self._get_icon('axis'), 'Snap to Axis')
+        self.act_stg = self.toolbar.addAction(self._get_icon('grid'), 'Snap to Grid (Shift)')
+        self.act_sta = self.toolbar.addAction(self._get_icon('axis'), 'Snap to Axis (Ctrl)')
         self.toolbar.addSeparator()
         self.act_add_rect  = self.toolbar.addAction(self._get_icon('rect'), 'Add Rectangle (F1)')
         self.act_add_poly  = self.toolbar.addAction(self._get_icon('poly'), 'Add Polygon (F2)')
@@ -135,16 +135,15 @@ class BuilderWindow(QtGui.QMainWindow):
         group_ins_sel.addAction(self.act_sel_txt)
 
         # set action shortcuts
-        self.act_stg.setShortcut('Ctrl+Shift')
         self.act_add_rect.setShortcut('F1')
         self.act_add_poly.setShortcut('F2')
         self.act_add_point.setShortcut('F3')
         self.act_sel_obj.setShortcut('F4')
         self.act_sel_pt.setShortcut('F5')
         self.act_sel_txt.setShortcut('F6')
-        self.act_open.setShortcut('Ctrl+O')
-        self.act_save.setShortcut('Ctrl+S')
-        self.act_savea.setShortcut('Ctrl+Shift+S')
+        self.act_open.setShortcut(QtGui.QKeySequence.Open)
+        self.act_save.setShortcut(QtGui.QKeySequence.Save)
+        self.act_savea.setShortcut(QtGui.QKeySequence.SaveAs)
 
 
         self.act_stg.setCheckable(True)
