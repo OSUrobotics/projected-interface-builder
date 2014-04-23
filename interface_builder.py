@@ -756,7 +756,7 @@ class DrawWidget(QtGui.QGraphicsView):
         self._cursor_point.setRect(QtCore.QRectF(pos-offset, pos+offset))
 
     def get_line_endpoint(self, pos, modifiers, highlight=False):
-        if modifiers == (QtCore.Qt.ShiftModifier | QtCore.Qt.ControlModifier):
+        if modifiers == QtCore.Qt.ControlModifier:
             return self.snapToAxis(pos)
 
         cta = self.closeToAny(pos)
