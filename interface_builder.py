@@ -114,10 +114,15 @@ class BuilderWindow(QtGui.QMainWindow):
         self.act_add_rect  = self.toolbar.addAction(self._get_icon('rect'), 'Add Rectangle (F1)')
         self.act_add_poly  = self.toolbar.addAction(self._get_icon('poly'), 'Add Polygon (F2)')
         # self.act_add_line = self.toolbar.addAction(self._get_icon('point'),'Add Points (F3)')
-        self.toolbar.addSeparator()
+        # self.toolbar.addSeparator()
         self.act_sel_obj = self.toolbar.addAction(self._get_icon('select_obj'),'Select Object (F4)')
         self.act_sel_pt = self.toolbar.addAction(self._get_icon('select_pt'),  'Select Point (F5)')
         self.act_sel_txt = self.toolbar.addAction(QtGui.QIcon.fromTheme('format-text-italic'),  'Select Text (F6)')
+
+        self.act_sel_obj.setVisible(False)
+        self.act_sel_pt.setVisible(False)
+        self.act_sel_txt.setVisible(False)
+
         self.toolbar.addSeparator()
         self.act_help = self.toolbar.addAction(QtGui.QIcon.fromTheme('help-contents'), 'Help')
 
