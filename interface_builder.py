@@ -28,14 +28,17 @@
 
 from __future__ import division
 
-import roslib; roslib.load_manifest('projected_interface_builder')
-import rospy
+PKG_NAME = 'projected_interface_builder'
+import roslib; roslib.load_manifest(PKG_NAME)
+import rospy, rospkg
 from PySide import QtGui, QtCore
 from math import hypot
 from pr2_python import pointclouds
 
 import sys, argparse
 import numpy as np
+
+from functools import partial
 
 from projected_interface_builder.data_structures import PolygonInfo
 from projected_interface_builder import colors
@@ -48,18 +51,26 @@ RULER_FONT = QtGui.QFont('Decorative', 12)
 MOUSE_MODE_EDIT = 0
 MOUSE_MODE_TEST = 1
 
+MODE_AXIS_ALIGN = '|'
+MODE_SNAP_TO_GRID = '#'
+MODE_NONE = ' '
+
 class BuilderWindow(QtGui.QMainWindow):
     def __init__(self, savefile=None, standalone=False):
         super(BuilderWindow, self).__init__()
+        self.rp = rospkg.RosPack()
         self._setWindowTitle()
         self.builder = Builder(standalone)
         self.builder.fileLoaded.connect(self._handleFileLoaded)
         self.builder.fileSaved.connect(self._handleFileSaved)
         self.builder.interfaceChanged.connect(self._handleInterfaceChanged)
+        self.builder.wid_draw.modeUpdate.connect(self._updateDrawMode)
         self.setCentralWidget(self.builder)
         self.statusBar()
         self.file_loaded = False
         self.unsaved_changes = False
+        self.setupToolbar()
+
         if savefile:
             self.load_polygons(savefile)
             self.file_loaded = True
@@ -77,6 +88,106 @@ class BuilderWindow(QtGui.QMainWindow):
             if save == QtGui.QMessageBox.Yes:
                 self.builder.save_polygons(self.builder.savefile)
         QtGui.QMainWindow.closeEvent(self, event)
+
+    def _updateDrawMode(self, mode):
+        self.act_sta.setChecked(False)
+        self.act_stg.setChecked(False)
+
+        if mode == MODE_AXIS_ALIGN:
+            self.act_sta.setChecked(True)
+        elif mode == MODE_SNAP_TO_GRID:
+            self.act_stg.setChecked(True)
+
+    def _get_icon(self, name):
+        path = os.path.join(self.rp.get_path('projected_interface_builder'), 'icons', '%s.svg' % name)
+        return QtGui.QIcon(path)
+
+    def setupToolbar(self):
+        self.toolbar = self.addToolBar('Toolbar')
+        self.act_open = self.toolbar.addAction(QtGui.QIcon.fromTheme('document-open'), 'Open')
+        self.act_save = self.toolbar.addAction(QtGui.QIcon.fromTheme('document-save'), 'Save')
+        self.act_savea = self.toolbar.addAction(QtGui.QIcon.fromTheme('document-save-as'), 'Save As')
+        self.toolbar.addSeparator()
+        self.act_stg = self.toolbar.addAction(self._get_icon('grid'), 'Snap to Grid (Shift)')
+        self.act_sta = self.toolbar.addAction(self._get_icon('axis'), 'Snap to Axis (Ctrl)')
+        self.toolbar.addSeparator()
+        self.act_add_rect  = self.toolbar.addAction(self._get_icon('rect'), 'Add Rectangle (F1)')
+        self.act_add_poly  = self.toolbar.addAction(self._get_icon('poly'), 'Add Polygon (F2)')
+        # self.act_add_line = self.toolbar.addAction(self._get_icon('point'),'Add Points (F3)')
+        # self.toolbar.addSeparator()
+        self.act_sel_obj = self.toolbar.addAction(self._get_icon('select_obj'),'Select Object (F4)')
+        self.act_sel_pt = self.toolbar.addAction(self._get_icon('select_pt'),  'Select Point (F5)')
+        self.act_sel_txt = self.toolbar.addAction(QtGui.QIcon.fromTheme('format-text-italic'),  'Select Text (F6)')
+
+        self.act_sel_obj.setVisible(False)
+        self.act_sel_pt.setVisible(False)
+        self.act_sel_txt.setVisible(False)
+
+        self.toolbar.addSeparator()
+        self.act_help = self.toolbar.addAction(QtGui.QIcon.fromTheme('help-contents'), 'Help')
+
+        # action groups
+        group_snap = QtGui.QActionGroup(self)
+        group_snap.addAction(self.act_stg)
+        group_snap.addAction(self.act_sta)
+
+        group_ins_sel = QtGui.QActionGroup(self)
+        group_ins_sel.addAction(self.act_add_rect)
+        group_ins_sel.addAction(self.act_add_poly)
+        # group_ins_sel.addAction(self.act_add_line)
+        group_ins_sel.addAction(self.act_sel_obj)
+        group_ins_sel.addAction(self.act_sel_pt)
+        group_ins_sel.addAction(self.act_sel_txt)
+
+        # set action shortcuts
+        self.act_add_rect.setShortcut('F1')
+        self.act_add_poly.setShortcut('F2')
+        # self.act_add_line.setShortcut('F3')
+        self.act_sel_obj.setShortcut('F4')
+        self.act_sel_pt.setShortcut('F5')
+        self.act_sel_txt.setShortcut('F6')
+        self.act_open.setShortcut(QtGui.QKeySequence.Open)
+        self.act_save.setShortcut(QtGui.QKeySequence.Save)
+        self.act_savea.setShortcut(QtGui.QKeySequence.SaveAs)
+
+
+        self.act_stg.setCheckable(True)
+        self.act_sta.setCheckable(True)
+
+        self.act_add_rect.setCheckable(True)
+        self.act_add_poly.setCheckable(True)
+        # self.act_add_line.setCheckable(True)
+
+
+        self.act_add_poly.triggered.connect(self.builder.wid_draw.setDrawModePolygon)
+        self.act_add_rect.triggered.connect(self.builder.wid_draw.setDrawModeRect)
+
+
+        self.act_sel_obj.setCheckable(True)
+        # self.act_sel_obj.triggered.connect()
+
+        self.act_sel_pt.setCheckable(True)
+        # self.act_sel_pt.triggered.connect()
+
+        self.act_sel_txt.setCheckable(True)
+        # self.act_sel_txt.triggered.connect()
+
+        self.act_open.triggered.connect(self.builder.load_polygons_click)
+
+        self.act_save.triggered.connect(self._save)
+
+        self.act_savea.triggered.connect(self._save_as)
+
+        self.act_savea.triggered.connect(self.builder.save_polygons)
+        url = roslib.manifest.parse_file(roslib.manifest.manifest_file(PKG_NAME)).url
+        self.act_help.triggered.connect(lambda : QtGui.QDesktopServices.openUrl(url))
+        # import pdb; pdb.set_trace()
+
+    def _save(self):
+        self.builder.save_polygons(fname=self.builder.savefile)
+
+    def _save_as(self):
+        self.builder.save_polygons(fname=None)
 
     def _handleFileSaved(self, filename):
         self.file_loaded = True
@@ -130,18 +241,18 @@ class Builder(QtGui.QWidget):
         self.wid_draw.modeUpdate.connect(self.modeUpdate)
         self.wid_draw.set_resolution(self.RES)
 
-        self.but_save = QtGui.QPushButton('Save', self)
-        self.but_load = QtGui.QPushButton('Load', self)
+        # self.but_save = QtGui.QPushButton('Save', self)
+        # self.but_load = QtGui.QPushButton('Load', self)
         
-        self.but_save.clicked.connect(self.save_polygons)
-        self.but_load.clicked.connect(self.load_polygons_click)
+        # self.but_save.clicked.connect(self.save_polygons)
+        # self.but_load.clicked.connect(self.load_polygons_click)
         
         # Widgets for the polygon tab
         polygon_tab_container = QtGui.QWidget()
         self.wid_list = QtGui.QListWidget()
         self.wid_list.itemSelectionChanged.connect(self.listItemSelectionChanged)
         
-        self.but_delete = QtGui.QPushButton('Delete', polygon_tab_container)
+        self.but_delete = QtGui.QPushButton('Delete Polygon', polygon_tab_container)
         self.but_delete.clicked.connect(self.deleteClick)
         
         self.wid_tabs = QtGui.QTabWidget(polygon_tab_container)
@@ -223,10 +334,10 @@ class Builder(QtGui.QWidget):
         ros_tab_layout.addWidget(self.offset_z                       )
         ros_tab_layout.addWidget(self.but_send                       )
         
-        layout.addWidget(self.wid_tabs, 0, 1, 2, 2)
+        layout.addWidget(self.wid_tabs, 0, 1, 3, 2)
         layout.addWidget(self.wid_draw, 0, 0, 3, 1)
-        layout.addWidget(self.but_save, 2, 1)
-        layout.addWidget(self.but_load, 2, 2)
+        # layout.addWidget(self.but_save, 2, 1)
+        # layout.addWidget(self.but_load, 2, 2)
         
         layout.setColumnMinimumWidth(0, 640)
         
@@ -476,6 +587,8 @@ class DrawWidget(QtGui.QGraphicsView):
     GRID_PEN         = QtGui.QPen(QtGui.QColor( 25,  25,  25))
     ACTIVE_POINT_PEN = QtGui.QPen(QtGui.QColor(  0, 255,   0), 3)
     ACTIVE_PEN       = QtGui.QPen(QtGui.QColor(255, 255, 255), 3)
+    INSERT_MODE_RECT = 0
+    INSERT_MODE_POLYGON = 1
 
     def __init__(self):
         super(DrawWidget, self).__init__()
@@ -497,6 +610,8 @@ class DrawWidget(QtGui.QGraphicsView):
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self.mouseMode = MOUSE_MODE_EDIT
+
+        self.insertMode = -1
 
         self.centerOn(0, 0)
     
@@ -529,6 +644,12 @@ class DrawWidget(QtGui.QGraphicsView):
     def clear_active_point(self):
         if self.active_point:
             self.scene.removeItem(self.active_point)
+
+    def setDrawModeRect(self):
+        self.insertMode = DrawWidget.INSERT_MODE_RECT
+
+    def setDrawModePolygon(self):
+        self.insertMode = DrawWidget.INSERT_MODE_POLYGON
 
     def setMouseMode(self, index):
         self.mouseMode = index
@@ -612,9 +733,34 @@ class DrawWidget(QtGui.QGraphicsView):
         else:
             return QtCore.QPoint(pt.x(), self.current_poly[-1].line().p1().y())
 
+    def do_rect_click(self, event):
+        cursor = self.mapToScene(event.pos())
+        endpoint = self.get_line_endpoint(cursor, event.modifiers(), highlight=True)
+        if not self.last_click:
+            self.last_click = endpoint
+            self.ins_rect = QtGui.QGraphicsRectItem(QtCore.QRectF(endpoint, endpoint))
+            self.ins_rect.setPen(self.POLYGON_PEN)
+            self.scene.addItem(self.ins_rect)
+            self.polygon_active = True
+        else:
+            poly = QtGui.QPolygon.fromList([
+                self.ins_rect.rect().topLeft().toPoint(),
+                self.ins_rect.rect().topRight().toPoint(),
+                self.ins_rect.rect().bottomRight().toPoint(),
+                self.ins_rect.rect().bottomLeft().toPoint()
+            ])
+            poly_container = PolygonInfo(QtGui.QPolygon(poly), name=self.generate_name())
+            self.add_polygon(poly_container)
+            self.polygonAdded.emit(poly_container.id)
+            self.polygon_active = False
+            self.remove_active_poly_items()
+            self.snap = False
+            self.last_click = None
+            self.ins_rect.scene().removeItem(self.ins_rect)
+
     def do_polygon_click(self, event):
         cursor = self.mapToScene(event.pos())
-        # this lets is close a polygon by single-clicking on its first vertex
+        # this lets us close a polygon by single-clicking on its first vertex
         if self.snap and not self.otherSnap:
             self.mouseDoubleClickEvent(QtGui.QMouseEvent(
                 event.type(),
@@ -655,7 +801,7 @@ class DrawWidget(QtGui.QGraphicsView):
         self._cursor_point.setRect(QtCore.QRectF(pos-offset, pos+offset))
 
     def get_line_endpoint(self, pos, modifiers, highlight=False):
-        if modifiers == (QtCore.Qt.ShiftModifier | QtCore.Qt.ControlModifier):
+        if modifiers == QtCore.Qt.ControlModifier and self.insertMode != DrawWidget.INSERT_MODE_RECT:
             return self.snapToAxis(pos)
 
         cta = self.closeToAny(pos)
@@ -700,9 +846,10 @@ class DrawWidget(QtGui.QGraphicsView):
             ))
         elif self.active_poly and self.objects[self.active_poly].in_text_box((self.cursorx, self.cursory)):
             self.do_text_click(event)
-        else:
+        elif self.insertMode == DrawWidget.INSERT_MODE_POLYGON:
             self.do_polygon_click(event)
-        self.last_click = self.mapToScene(event.pos())
+        elif self.insertMode == DrawWidget.INSERT_MODE_RECT:
+            self.do_rect_click(event)
 
     def mouseReleaseEvent(self, event):
         button = event.button()
@@ -745,21 +892,44 @@ class DrawWidget(QtGui.QGraphicsView):
             endpoint = self.get_line_endpoint(pos, event.modifiers(), highlight=True)
             self.mouseMoved.emit(endpoint)
 
-            if self.polygon_active:
-                # Note: line() returns a *copy* of the backing line, so changing it doesn't do anything
-                line = self.active_line.line()
-                line.setP2(endpoint)
-                self.active_line.setLine(line)
+            if self.insertMode == DrawWidget.INSERT_MODE_POLYGON:
+                if self.polygon_active:
+                    # Note: line() returns a *copy* of the backing line, so changing it doesn't do anything
+                    line = self.active_line.line()
+                    line.setP2(endpoint)
+                    self.active_line.setLine(line)
 
-                # update the ruler
-                self._ruler.setPos((line.p1() + line.p2())/2)
-                rise, run = line.dx(), line.dy()
-                if rise != 0:
-                    angle = np.degrees(np.arctan(run/rise))
-                    self._ruler.setRotation(angle)
-                dist = np.hypot(rise, run)*self.res
-                self._ruler.setPlainText('%0.4fm' % dist)
-                self._ruler.show()
+                    # update the ruler
+                    self._ruler.setPos((line.p1() + line.p2())/2)
+                    rise, run = line.dx(), line.dy()
+                    if rise != 0:
+                        angle = np.degrees(np.arctan(run/rise))
+                        self._ruler.setRotation(angle)
+                    dist = np.hypot(rise, run)*self.res
+                    self._ruler.setPlainText('%0.4fm' % dist)
+                    self._ruler.show()
+            elif self.insertMode == DrawWidget.INSERT_MODE_RECT:
+                if self.polygon_active:
+                    rect = self.ins_rect.rect()
+                    rect.setCoords(self.last_click.x(), self.last_click.y(), endpoint.x(), endpoint.y())
+                    if   self.last_click.x() < endpoint.x() and self.last_click.y() < endpoint.y():
+                        # self.last_click is top left, endpoint is bottom right
+                        rect.setTopLeft(self.last_click)
+                        rect.setBottomRight(endpoint)
+                    elif self.last_click.x() < endpoint.x() and self.last_click.y() > endpoint.y():
+                        # self.last_click is bottom left, endpoint is top right
+                        rect.setBottomLeft(self.last_click)
+                        rect.setTopRight(endpoint)
+                    elif self.last_click.x() > endpoint.x() and self.last_click.y() < endpoint.y():
+                        # self.last_click is top right, endpoint is bottom left
+                        rect.setTopRight(self.last_click)
+                        rect.setBottomLeft(endpoint)
+                    elif self.last_click.x() > endpoint.x() and self.last_click.y() > endpoint.y():
+                        # self.last_click is bottom right and endpoint is top left
+                        rect.setBottomRight(self.last_click)
+                        rect.setTopLeft(endpoint)
+
+                    self.ins_rect.setRect(rect)
         elif self.mouseMode == MOUSE_MODE_TEST:
             # Qt defines 0,0 in the upper left, so, and down as +y, so flip the y
             pos = event.pos()
@@ -769,7 +939,7 @@ class DrawWidget(QtGui.QGraphicsView):
 
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Control:
-            self.modeUpdate.emit('|')
+            self.modeUpdate.emit(MODE_AXIS_ALIGN)
         if event.key() == QtCore.Qt.Key.Key_Escape:
             if self.text_move:
                 self.text_move = False
@@ -777,13 +947,18 @@ class DrawWidget(QtGui.QGraphicsView):
             self.polygon_active = False
             self.remove_active_poly_items()
             self._ruler.hide()
+            self.last_click = None
+            try:
+                self.ins_rect.scene().removeItem(self.ins_rect)
+            except:
+                pass # might not exist
 
             self.snap = False
         elif event.key() ==  QtCore.Qt.Key.Key_Shift:
-            self.modeUpdate.emit('#')
+            self.modeUpdate.emit(MODE_SNAP_TO_GRID)
         
     def keyReleaseEvent(self, event):
-        self.modeUpdate.emit(' ')
+        self.modeUpdate.emit(MODE_NONE)
 
     def remove_active_poly_items(self):
         for line in self.current_poly:
