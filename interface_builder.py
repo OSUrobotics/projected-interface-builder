@@ -42,6 +42,7 @@ from functools import partial
 
 from projected_interface_builder.data_structures import PolygonInfo
 from projected_interface_builder import colors
+from projected_interface_builder import modes
 
 import os
 
@@ -114,15 +115,10 @@ class BuilderWindow(QtGui.QMainWindow):
         self.act_add_rect  = self.toolbar.addAction(self._get_icon('rect'), 'Add Rectangle (F1)')
         self.act_add_poly  = self.toolbar.addAction(self._get_icon('poly'), 'Add Polygon (F2)')
         # self.act_add_line = self.toolbar.addAction(self._get_icon('point'),'Add Points (F3)')
-        # self.toolbar.addSeparator()
+        self.toolbar.addSeparator()
         self.act_sel_obj = self.toolbar.addAction(self._get_icon('select_obj'),'Select Object (F4)')
         self.act_sel_pt = self.toolbar.addAction(self._get_icon('select_pt'),  'Select Point (F5)')
         self.act_sel_txt = self.toolbar.addAction(QtGui.QIcon.fromTheme('format-text-italic'),  'Select Text (F6)')
-
-        self.act_sel_obj.setVisible(False)
-        self.act_sel_pt.setVisible(False)
-        self.act_sel_txt.setVisible(False)
-
         self.toolbar.addSeparator()
         self.act_help = self.toolbar.addAction(QtGui.QIcon.fromTheme('help-contents'), 'Help')
 
@@ -164,13 +160,13 @@ class BuilderWindow(QtGui.QMainWindow):
 
 
         self.act_sel_obj.setCheckable(True)
-        # self.act_sel_obj.triggered.connect()
+        self.act_sel_obj.triggered.connect(self.builder.wid_draw.setEditModeObject)
 
         self.act_sel_pt.setCheckable(True)
-        # self.act_sel_pt.triggered.connect()
+        self.act_sel_pt.triggered.connect(self.builder.wid_draw.setEditModePoint)
 
         self.act_sel_txt.setCheckable(True)
-        # self.act_sel_txt.triggered.connect()
+        self.act_sel_txt.triggered.connect(self.builder.wid_draw.setEditModeText)
 
         self.act_open.triggered.connect(self.builder.load_polygons_click)
 
@@ -587,14 +583,14 @@ class DrawWidget(QtGui.QGraphicsView):
     GRID_PEN         = QtGui.QPen(QtGui.QColor( 25,  25,  25))
     ACTIVE_POINT_PEN = QtGui.QPen(QtGui.QColor(  0, 255,   0), 3)
     ACTIVE_PEN       = QtGui.QPen(QtGui.QColor(255, 255, 255), 3)
-    INSERT_MODE_RECT = 0
-    INSERT_MODE_POLYGON = 1
+    ACTIVE_EDIT_PEN  = QtGui.QPen(QtCore.Qt.white, 3, QtCore.Qt.DashLine)
 
     def __init__(self):
         super(DrawWidget, self).__init__()
         self.setMouseTracking(True)
         self.scene = QtGui.QGraphicsScene()
         self.scene.setBackgroundBrush(QtGui.QColor(0, 0, 0))
+        # self.setRenderHints(QtGui.QPainter.Antialiasing)
 
         self._ruler = self.scene.addText('', RULER_FONT)
         self._ruler.hide()
@@ -612,6 +608,7 @@ class DrawWidget(QtGui.QGraphicsView):
         self.mouseMode = MOUSE_MODE_EDIT
 
         self.insertMode = -1
+        self.editMode = modes.EDIT_MODE_NONE
 
         self.centerOn(0, 0)
     
@@ -646,10 +643,28 @@ class DrawWidget(QtGui.QGraphicsView):
             self.scene.removeItem(self.active_point)
 
     def setDrawModeRect(self):
-        self.insertMode = DrawWidget.INSERT_MODE_RECT
+        self.insertMode = modes.INSERT_MODE_RECT
 
     def setDrawModePolygon(self):
-        self.insertMode = DrawWidget.INSERT_MODE_POLYGON
+        self.insertMode = modes.INSERT_MODE_POLYGON
+
+    def setEditModeObject(self):
+        self.updateActivePen()
+        self.editMode = modes.EDIT_MODE_OBJECT
+
+    def setEditModePoint(self):
+        self.updateActivePen()
+        self.editMode = modes.EDIT_MODE_POINT
+
+    def setEditModeText(self):
+        self.updateActivePen()
+        self.editMode = modes.EDIT_MODE_TEXT
+
+    def updateActivePen(self):
+        if self.active_poly and self.editMode == modes.EDIT_MODE_OBJECT:
+            self.objects[self.active_poly].gfx_item.setPen(self.ACTIVE_EDIT_PEN)
+        elif self.active_poly:
+            self.objects[self.active_poly].gfx_item.setPen(self.ACTIVE_PEN)
 
     def setMouseMode(self, index):
         self.mouseMode = index
@@ -691,7 +706,10 @@ class DrawWidget(QtGui.QGraphicsView):
         if self.active_poly:
             self.objects[self.active_poly].gfx_item.setPen(self.POLYGON_PEN)
         self.active_poly = name
-        self.objects[name].gfx_item.setPen(self.ACTIVE_PEN)
+        if self.editMode and (modes.EDIT_MODE_OBJECT or modes.EDIT_MODE_POINT):
+            self.objects[name].gfx_item.setPen(self.ACTIVE_EDIT_PEN)
+        else:
+            self.objects[name].gfx_item.setPen(self.ACTIVE_PEN)
         self.make_top(self.objects[name].gfx_item)
 
     def generate_name(self):
@@ -801,7 +819,7 @@ class DrawWidget(QtGui.QGraphicsView):
         self._cursor_point.setRect(QtCore.QRectF(pos-offset, pos+offset))
 
     def get_line_endpoint(self, pos, modifiers, highlight=False):
-        if modifiers == QtCore.Qt.ControlModifier and self.insertMode != DrawWidget.INSERT_MODE_RECT:
+        if modifiers == QtCore.Qt.ControlModifier and self.insertMode != modes.INSERT_MODE_RECT:
             return self.snapToAxis(pos)
 
         cta = self.closeToAny(pos)
@@ -846,9 +864,9 @@ class DrawWidget(QtGui.QGraphicsView):
             ))
         elif self.active_poly and self.objects[self.active_poly].in_text_box((self.cursorx, self.cursory)):
             self.do_text_click(event)
-        elif self.insertMode == DrawWidget.INSERT_MODE_POLYGON:
+        elif self.insertMode == modes.INSERT_MODE_POLYGON:
             self.do_polygon_click(event)
-        elif self.insertMode == DrawWidget.INSERT_MODE_RECT:
+        elif self.insertMode == modes.INSERT_MODE_RECT:
             self.do_rect_click(event)
 
     def mouseReleaseEvent(self, event):
@@ -892,7 +910,7 @@ class DrawWidget(QtGui.QGraphicsView):
             endpoint = self.get_line_endpoint(pos, event.modifiers(), highlight=True)
             self.mouseMoved.emit(endpoint)
 
-            if self.insertMode == DrawWidget.INSERT_MODE_POLYGON:
+            if self.insertMode == modes.INSERT_MODE_POLYGON:
                 if self.polygon_active:
                     # Note: line() returns a *copy* of the backing line, so changing it doesn't do anything
                     line = self.active_line.line()
@@ -908,7 +926,7 @@ class DrawWidget(QtGui.QGraphicsView):
                     dist = np.hypot(rise, run)*self.res
                     self._ruler.setPlainText('%0.4fm' % dist)
                     self._ruler.show()
-            elif self.insertMode == DrawWidget.INSERT_MODE_RECT:
+            elif self.insertMode == modes.INSERT_MODE_RECT:
                 if self.polygon_active:
                     rect = self.ins_rect.rect()
                     rect.setCoords(self.last_click.x(), self.last_click.y(), endpoint.x(), endpoint.y())
