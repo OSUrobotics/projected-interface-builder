@@ -28,6 +28,7 @@
 from PySide import QtGui, QtCore
 import datetime, time
 import numpy as np
+from projected_interface_builder import modes
 
 FONT = QtGui.QFont('Decorative', 30)
 
@@ -64,12 +65,14 @@ class PolygonInfo:
 
     def set_item(self, item):
         self.gfx_item = item
+        self.gfx_item.setFlags(QtGui.QGraphicsItem.ItemIsMovable | QtGui.QGraphicsItem.ItemIsSelectable | QtGui.QGraphicsItem.ItemIsFocusable)
 
     def clear_item(self):
         self.gfx_item = None
 
     def set_text_item(self, item):
         self.text_item = item
+        self.text_item.setParentItem(self.gfx_item)
 
     def _gen_id(self):
         return 'poly%s' % int(time.mktime(datetime.datetime.now().timetuple()))
