@@ -268,7 +268,7 @@ class Builder(QtGui.QWidget):
                 # remove the point from the underlying polygon, then reload
                 if self.wid_edit.currentRow() > 1:
                     poly_info = self.wid_draw.objects[self.wid_list.currentItem().text()]
-                    poly_info.polygon.remove(self.wid_edit.currentRow()-2)
+                    poly_info.polygon().remove(self.wid_edit.currentRow()-2)
                     poly_info.update_item()
                     self.wid_draw.clear_active_point()
                     self.listItemSelectionChanged()
@@ -346,7 +346,7 @@ class Builder(QtGui.QWidget):
             mat = np.eye(3).flatten().tolist()
             mat[0] = 1.0
             trans.setMatrix(*mat)
-        self.wid_draw.setTransform(trans, False)
+        self.wid_draw.setTransform(ftrans, False)
         self.interfaceChanged.emit()
 
     def save_polygons(self, fname=None):
@@ -386,7 +386,7 @@ class Builder(QtGui.QWidget):
                     seq += 1
             else:
                 for poly in data['polygons'].values():
-                    self.wid_draw.add_polygon(poly) 
+                    self.wid_draw.add_polygon(PolygonInfo(**poly)) 
 
             self.wid_frame.setText(data['frame_id'])
             self.wid_resolution.setText(str(data['resolution']))
@@ -414,7 +414,7 @@ class Builder(QtGui.QWidget):
 
         markers = MarkerArray()
         for uid, poly_info in self.wid_draw.objects.iteritems():
-            ps = QtPolyToROS(poly_info.polygon, uid, x, y, z, res, self.wid_frame.text())
+            ps = QtPolyToROS(poly_info.polygon(), uid, x, y, z, res, self.wid_frame.text())
             ps.header.stamp = rospy.Time.now()
             text_rect = QtPolyToROS(
                 QtRectToPoly(poly_info.text_rect),
@@ -499,7 +499,7 @@ class Builder(QtGui.QWidget):
         self.wid_draw.setActive(item.text())
         self.wid_edit.setItem(0, 0, QtGui.QTableWidgetItem(poly.name))
         self.wid_edit.setItem(1, 0, QtGui.QTableWidgetItem(poly.id))
-        points = poly.polygon
+        points = poly.polygon()
         self.wid_edit.setRowCount(2+len(points))
         res = float(self.wid_resolution.text())
         for px, point in enumerate(points):
@@ -543,8 +543,10 @@ class Builder(QtGui.QWidget):
             try:
                 exec('x,y=%s' % item.text())
                 changed = self.wid_draw.updatePoint(self.wid_list.currentItem().text(), row-2, x/res, y/res)
-                # self.wid_draw.update_active_point(QtCore.QPoint(x,y))
-                self.wid_draw.clear_active_point()
+                if changed:
+                    self.wid_draw.update_active_point(QtCore.QPoint(x/res,y/res))
+                else:
+                    self.wid_draw.clear_active_point()
             except Exception, e:
                 print e
         if changed and not self._changePoly:
@@ -613,8 +615,7 @@ class DrawWidget(QtGui.QGraphicsView):
     
     def clear(self):
         for obj in self.objects.itervalues():
-            self.scene.removeItem(obj.gfx_item)
-            self.scene.removeItem(obj.text_item)
+            self.scene.removeItem(obj)
         self.objects.clear()
         self.active_poly = ''
         self.active_point = None
@@ -624,11 +625,8 @@ class DrawWidget(QtGui.QGraphicsView):
         self.res = res
 
     def add_polygon(self, poly_info):
-        poly_info.set_item(self.scene.addPolygon(poly_info.polygon, pen=self.POLYGON_PEN))
-        text_item = self.scene.addText(poly_info.name)
-        text_item.setPos(poly_info.text_rect.topLeft())
-        text_item.setFont(FONT)
-        poly_info.set_text_item(text_item)
+        poly_info.setPen(self.POLYGON_PEN)
+        self.scene.addItem(poly_info)
         self.objects[poly_info.id] = poly_info
 
     def update_active_point(self, point):
@@ -639,7 +637,7 @@ class DrawWidget(QtGui.QGraphicsView):
 
     def clear_active_point(self):
         if self.active_point:
-            self.scene.removeItem(self.active_point)
+            self.active_point.hide()
 
     def setDrawModeRect(self):
         self.insertMode = modes.INSERT_MODE_RECT
@@ -661,9 +659,9 @@ class DrawWidget(QtGui.QGraphicsView):
 
     def updateActivePen(self):
         if self.active_poly and self.editMode == modes.EDIT_MODE_OBJECT:
-            self.objects[self.active_poly].gfx_item.setPen(self.POLYGON_PEN)
+            self.objects[self.active_poly].setPen(self.POLYGON_PEN)
         elif self.active_poly:
-            self.objects[self.active_poly].gfx_item.setPen(self.ACTIVE_PEN)
+            self.objects[self.active_poly].setPen(self.ACTIVE_PEN)
 
     def setMouseMode(self, index):
         self.mouseMode = index
@@ -680,19 +678,19 @@ class DrawWidget(QtGui.QGraphicsView):
         self.setActive(newId)
 
     def updatePoint(self, uid, point_index, x, y):
-        pt = self.objects[uid].polygon[point_index]
+        poly = self.objects[uid].polygon()
+        pt = poly[point_index]
         if not pt.x() == x or not pt.y() == y:
             pt.setX(x)
             pt.setY(y)
-            self.objects[uid].polygon.replace(point_index, pt)
-            self.objects[uid].gfx_item.setPolygon(self.objects[uid].polygon)
+            poly.replace(point_index, pt)
+            self.objects[uid].setPolygon(poly)
             return True
         return False
 
     def removeObject(self, name):
         obj = self.objects[name]
-        self.scene.removeItem(obj.gfx_item)
-        self.scene.removeItem(obj.text_item)
+        self.scene.removeItem(obj)
         self.clear_active_point()
         self.active_poly = ''
 
@@ -703,15 +701,13 @@ class DrawWidget(QtGui.QGraphicsView):
 
     def setActive(self, name):
         if self.active_poly:
-            self.objects[self.active_poly].gfx_item.setPen(self.POLYGON_PEN)
-            self.objects[self.active_poly].hide_bounding_box()
+            self.objects[self.active_poly].setPen(self.POLYGON_PEN)
         self.active_poly = name
         if self.editMode and (modes.EDIT_MODE_OBJECT or modes.EDIT_MODE_POINT):
-            self.objects[name].gfx_item.setPen(self.POLYGON_PEN)
-            self.objects[self.active_poly].show_bounding_box(self.ACTIVE_EDIT_PEN)
+            self.objects[name].setPen(self.POLYGON_PEN)
         else:
-            self.objects[name].gfx_item.setPen(self.ACTIVE_PEN)
-        self.make_top(self.objects[name].gfx_item)
+            self.objects[name].setPen(self.ACTIVE_PEN)
+        self.make_top(self.objects[name])
 
     def generate_name(self):
         return 'Polygon %s' % len(self.objects)
@@ -730,7 +726,7 @@ class DrawWidget(QtGui.QGraphicsView):
 
     def closeToAny(self, p):
         for poly_info in self.objects.values():
-            for v in poly_info.polygon:
+            for v in poly_info.polygon():
                 if self.closeTo(v, p):
                     return v
         return None
@@ -768,7 +764,7 @@ class DrawWidget(QtGui.QGraphicsView):
                 self.ins_rect.rect().bottomRight().toPoint(),
                 self.ins_rect.rect().bottomLeft().toPoint()
             ])
-            poly_container = PolygonInfo(QtGui.QPolygon(poly), name=self.generate_name())
+            poly_container = PolygonInfo(polygon=QtGui.QPolygon(poly), name=self.generate_name())
             self.add_polygon(poly_container)
             self.polygonAdded.emit(poly_container.id)
             self.polygon_active = False
@@ -897,7 +893,7 @@ class DrawWidget(QtGui.QGraphicsView):
             # polygon-ize the line list
             if event.button() == QtCore.Qt.MouseButton.LeftButton:
                 poly = QtGui.QPolygon.fromList([l.line().p1().toPoint() for l in self.current_poly])
-                poly_container = PolygonInfo(QtGui.QPolygon(poly), name=self.generate_name())
+                poly_container = PolygonInfo(polygon=QtGui.QPolygon(poly), name=self.generate_name())
                 self.add_polygon(poly_container)
                 self.polygonAdded.emit(poly_container.id)
                 self.polygon_active = False

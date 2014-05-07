@@ -32,14 +32,28 @@ from projected_interface_builder import modes
 
 FONT = QtGui.QFont('Decorative', 30)
 
-class PolygonInfo:
-    gfx_item = None
+class PolygonInfo(QtGui.QGraphicsPolygonItem):
     text_item = None
-    def __init__(self, polygon, uid=None, name=''):
-        self.polygon = polygon
+    def __init__(self, polygon=None, text_rect=None, uid=None, name=''):
+        super(PolygonInfo, self).__init__(polygon)
+        if not polygon:
+            raise TypeError('A polygon is required')
         self.name = name
         self.id = uid
-        self.text_rect = polygon.boundingRect()
+        if text_rect:
+            self.text_rect = text_rect
+        else:
+            self.text_rect = polygon.boundingRect()
+        self.text_item = QtGui.QGraphicsTextItem(name, parent=self)
+        self.text_item.setPos(self.text_rect.center())
+        self.text_item.setFont(FONT)
+
+        self.setFlags(
+            QtGui.QGraphicsItem.ItemIsMovable
+          | QtGui.QGraphicsItem.ItemIsSelectable
+          | QtGui.QGraphicsItem.ItemIsFocusable
+        )
+
         self.update_font_box()
         if uid is None:
             self.id = self._gen_id()
@@ -54,25 +68,21 @@ class PolygonInfo:
         
         bounding_rect.setWidth(font_metrics.width(longest_line)*1.25)
         bounding_rect.setHeight((font_metrics.height()+5)*nlines)
-        bounding_rect.moveCenter(self.text_rect.center())
+        c = self.text_rect.center()
+        if type(c) is QtCore.QPointF: c = c.toPoint()
+        bounding_rect.moveCenter(c)
         self.text_rect = bounding_rect
 
-    def zValue(self):
-        return self.gfx_item.zValue()
-
     def update_item(self):
-        self.gfx_item.setPolygon(self.polygon)
-
-    def set_item(self, item):
-        self.gfx_item = item
-        self.gfx_item.setFlags(QtGui.QGraphicsItem.ItemIsMovable | QtGui.QGraphicsItem.ItemIsSelectable | QtGui.QGraphicsItem.ItemIsFocusable)
+        self.setPolygon(self.polygon)
 
     def clear_item(self):
-        self.gfx_item = None
+        raise DeprecationWarning('PolygonInfo is now a subclass of QGraphicsPolygonItem. \
+            Functions that touch gfx_item are no longer supported.')
 
     def set_text_item(self, item):
         self.text_item = item
-        self.text_item.setParentItem(self.gfx_item)
+        self.text_item.setParentItem(self)
 
     def _gen_id(self):
         return 'poly%s' % int(time.mktime(datetime.datetime.now().timetuple()))
@@ -87,4 +97,9 @@ class PolygonInfo:
            and pt[1] > self.text_rect.top()
 
     def exportable(self):
-        return PolygonInfo(self.polygon, self.id, self.name)
+        # return PolygonInfo(self.polygon(), self.id, self.name)
+        return dict(
+            polygon=self.polygon().toPolygon(),
+            text_rect=self.text_rect,
+            uid=self.id,
+            name=self.name)
