@@ -41,8 +41,7 @@ import numpy as np
 from functools import partial
 
 from projected_interface_builder.data_structures import PolygonInfo
-from projected_interface_builder import colors
-from projected_interface_builder import modes
+from projected_interface_builder import colors, modes
 
 import os
 
@@ -583,7 +582,7 @@ class DrawWidget(QtGui.QGraphicsView):
     GRID_PEN         = QtGui.QPen(QtGui.QColor( 25,  25,  25))
     ACTIVE_POINT_PEN = QtGui.QPen(QtGui.QColor(  0, 255,   0), 3)
     ACTIVE_PEN       = QtGui.QPen(QtGui.QColor(255, 255, 255), 3)
-    ACTIVE_EDIT_PEN  = QtGui.QPen(QtCore.Qt.white, 3, QtCore.Qt.DashLine)
+    ACTIVE_EDIT_PEN  = QtGui.QPen(QtCore.Qt.gray, 1, QtCore.Qt.DashLine)
 
     def __init__(self):
         super(DrawWidget, self).__init__()
@@ -662,7 +661,7 @@ class DrawWidget(QtGui.QGraphicsView):
 
     def updateActivePen(self):
         if self.active_poly and self.editMode == modes.EDIT_MODE_OBJECT:
-            self.objects[self.active_poly].gfx_item.setPen(self.ACTIVE_EDIT_PEN)
+            self.objects[self.active_poly].gfx_item.setPen(self.POLYGON_PEN)
         elif self.active_poly:
             self.objects[self.active_poly].gfx_item.setPen(self.ACTIVE_PEN)
 
@@ -705,9 +704,11 @@ class DrawWidget(QtGui.QGraphicsView):
     def setActive(self, name):
         if self.active_poly:
             self.objects[self.active_poly].gfx_item.setPen(self.POLYGON_PEN)
+            self.objects[self.active_poly].hide_bounding_box()
         self.active_poly = name
         if self.editMode and (modes.EDIT_MODE_OBJECT or modes.EDIT_MODE_POINT):
-            self.objects[name].gfx_item.setPen(self.ACTIVE_EDIT_PEN)
+            self.objects[name].gfx_item.setPen(self.POLYGON_PEN)
+            self.objects[self.active_poly].show_bounding_box(self.ACTIVE_EDIT_PEN)
         else:
             self.objects[name].gfx_item.setPen(self.ACTIVE_PEN)
         self.make_top(self.objects[name].gfx_item)
@@ -853,21 +854,24 @@ class DrawWidget(QtGui.QGraphicsView):
             self.text_rect_orig = self.objects[self.active_poly].text_rect.translated(QtCore.QPoint())
 
     def mousePressEvent(self, event):
-        if event.button() == QtCore.Qt.MouseButton.MiddleButton:
-            self.setDragMode(QtGui.QGraphicsView.DragMode.ScrollHandDrag)
-            super(DrawWidget, self).mousePressEvent(QtGui.QMouseEvent(
-                event.type(),
-                event.pos(),
-                QtCore.Qt.MouseButton.LeftButton,
-                event.buttons(),
-                event.modifiers()
-            ))
-        elif self.active_poly and self.objects[self.active_poly].in_text_box((self.cursorx, self.cursory)):
-            self.do_text_click(event)
-        elif self.insertMode == modes.INSERT_MODE_POLYGON:
-            self.do_polygon_click(event)
-        elif self.insertMode == modes.INSERT_MODE_RECT:
-            self.do_rect_click(event)
+        if self.editMode and modes.EDIT_MODE_ANY:
+            super(DrawWidget, self).mousePressEvent(event)
+        else:
+            if event.button() == QtCore.Qt.MouseButton.MiddleButton:
+                self.setDragMode(QtGui.QGraphicsView.DragMode.ScrollHandDrag)
+                super(DrawWidget, self).mousePressEvent(QtGui.QMouseEvent(
+                    event.type(),
+                    event.pos(),
+                    QtCore.Qt.MouseButton.LeftButton,
+                    event.buttons(),
+                    event.modifiers()
+                ))
+            elif self.active_poly and self.objects[self.active_poly].in_text_box((self.cursorx, self.cursory)):
+                self.do_text_click(event)
+            elif self.insertMode == modes.INSERT_MODE_POLYGON:
+                self.do_polygon_click(event)
+            elif self.insertMode == modes.INSERT_MODE_RECT:
+                self.do_rect_click(event)
 
     def mouseReleaseEvent(self, event):
         button = event.button()
