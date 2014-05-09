@@ -234,6 +234,8 @@ class Builder(QtGui.QWidget):
         self.wid_draw.mouseMoved.connect(self.mouseMoved)
         self.wid_draw.mouseClick.connect(self.mouseClick)
         self.wid_draw.modeUpdate.connect(self.modeUpdate)
+        self.wid_draw.polygonChanged.connect(self.polygonChanged)
+        self.wid_draw.polygonFocus.connect(self.polygonFocus)
         self.wid_draw.set_resolution(self.RES)
 
         # self.but_save = QtGui.QPushButton('Save', self)
@@ -470,6 +472,27 @@ class Builder(QtGui.QWidget):
         self.wid_list.addItem(name)
         self.interfaceChanged.emit()
         
+    def polygonChanged(self, uid, polygon):
+        items = self.wid_list.findItems(uid, QtCore.Qt.MatchFlag.MatchExactly)
+        if items:
+            self.wid_edit.cellChanged.disconnect(self.cellChanged)
+            # Disconnect the signal temporarily so it doesn't try to update stuff
+            item = items[0]
+            res = float(self.wid_resolution.text())
+            self.wid_edit.setRowCount(2+len(polygon))
+            for px, point in enumerate(polygon):
+                x = point.x()*res
+                y = point.y()*res
+                self.wid_edit.setItem(px+2, 0, QtGui.QTableWidgetItem('(%0.4f, %0.4f)' % (x, y)))
+            self.wid_edit.cellChanged.connect(self.cellChanged)
+            self.interfaceChanged.emit()
+
+    def polygonFocus(self, uid, has_focus):
+        items = self.wid_list.findItems(uid, QtCore.Qt.MatchFlag.MatchExactly)
+        if items:
+            item = items[0]
+            self.wid_list.setCurrentItem(item)
+
     def mouseMoved(self, location):
         offset_x = float(self.offset_x.text())
         offset_y = float(self.offset_y.text())
@@ -567,6 +590,8 @@ class DrawWidget(QtGui.QGraphicsView):
     polygon_active = False
     current_poly = []
     polygonAdded = QtCore.Signal(str)
+    polygonChanged = QtCore.Signal(str, QtGui.QPolygon)
+    polygonFocus = QtCore.Signal(str, bool)
     mouseMoved = QtCore.Signal(QtCore.QPointF)
     mouseClick = QtCore.Signal()
     modeUpdate = QtCore.Signal(str)
@@ -628,6 +653,8 @@ class DrawWidget(QtGui.QGraphicsView):
         poly_info.setPen(self.POLYGON_PEN)
         self.scene.addItem(poly_info)
         self.objects[poly_info.id] = poly_info
+        poly_info.signaler.changed.connect(partial(self.handle_polygon_changed, poly_info.id))
+        poly_info.signaler.focus.connect(partial(self.handle_polygon_focus, poly_info.id))
 
     def update_active_point(self, point):
         self.clear_active_point()
@@ -662,6 +689,7 @@ class DrawWidget(QtGui.QGraphicsView):
             self.objects[self.active_poly].setPen(self.POLYGON_PEN)
         elif self.active_poly:
             self.objects[self.active_poly].setPen(self.ACTIVE_PEN)
+            self.objects[self.active_poly].setSelected(True)
 
     def setMouseMode(self, index):
         self.mouseMode = index
@@ -702,9 +730,12 @@ class DrawWidget(QtGui.QGraphicsView):
     def setActive(self, name):
         if self.active_poly:
             self.objects[self.active_poly].setPen(self.POLYGON_PEN)
+            self.objects[self.active_poly].setSelected(False)
         self.active_poly = name
+
         if self.editMode and (modes.EDIT_MODE_OBJECT or modes.EDIT_MODE_POINT):
             self.objects[name].setPen(self.POLYGON_PEN)
+            self.objects[name].setSelected(True)
         else:
             self.objects[name].setPen(self.ACTIVE_PEN)
         self.make_top(self.objects[name])
@@ -1000,6 +1031,14 @@ class DrawWidget(QtGui.QGraphicsView):
                     QtCore.QPoint(left, inc),
                     QtCore.QPoint(right, inc)
                 ), self.GRID_PEN)
+
+    def handle_polygon_changed(self, uid, poly):
+        self.polygonChanged.emit(uid, poly.toPolygon())
+
+    def handle_polygon_focus(self, uid, has_focus):
+        self.polygonFocus.emit(uid, has_focus)
+        if has_focus:
+            self.setActive(uid)
 
 if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)

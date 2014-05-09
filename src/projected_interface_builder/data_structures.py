@@ -33,6 +33,11 @@ from projected_interface_builder import modes
 FONT = QtGui.QFont('Decorative', 30)
 
 class PolygonInfo(QtGui.QGraphicsPolygonItem):
+
+    class Signaler(QtCore.QObject):
+        changed = QtCore.Signal(QtGui.QPolygonF)
+        focus = QtCore.Signal(bool)
+
     text_item = None
     def __init__(self, polygon=None, text_rect=None, uid=None, name=''):
         super(PolygonInfo, self).__init__(polygon)
@@ -57,6 +62,8 @@ class PolygonInfo(QtGui.QGraphicsPolygonItem):
         self.update_font_box()
         if uid is None:
             self.id = self._gen_id()
+
+        self.signaler = PolygonInfo.Signaler()
 
     def update_font_box(self, font_metrics=QtGui.QFontMetrics(FONT)):
         if self.text_item:
@@ -99,7 +106,20 @@ class PolygonInfo(QtGui.QGraphicsPolygonItem):
     def exportable(self):
         # return PolygonInfo(self.polygon(), self.id, self.name)
         return dict(
-            polygon=self.polygon().toPolygon(),
-            text_rect=self.text_rect,
+            polygon=self.mapToScene(self.polygon()).toPolygon(),
+            text_rect=self.mapToScene(self.text_rect).boundingRect().toRect(),
             uid=self.id,
             name=self.name)
+
+
+    def mouseMoveEvent(self, event):
+        self.signaler.changed.emit(self.mapToScene(self.polygon()))
+        super(PolygonInfo, self).mouseMoveEvent(event)
+
+    def focusInEvent(self, event):
+        self.signaler.focus.emit(True)
+        super(PolygonInfo, self).focusInEvent(event)
+
+    def focusOutEvent(self, event):
+        self.signaler.focus.emit(False)
+        super(PolygonInfo, self).focusOutEvent(event)
