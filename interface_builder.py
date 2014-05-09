@@ -668,21 +668,26 @@ class DrawWidget(QtGui.QGraphicsView):
 
     def setDrawModeRect(self):
         self.insertMode = modes.INSERT_MODE_RECT
+        self.editMode = modes.EDIT_MODE_NONE
 
     def setDrawModePolygon(self):
         self.insertMode = modes.INSERT_MODE_POLYGON
+        self.editMode = modes.EDIT_MODE_NONE
 
     def setEditModeObject(self):
         self.updateActivePen()
         self.editMode = modes.EDIT_MODE_OBJECT
+        self.insertMode = modes.INSERT_MODE_NONE
 
     def setEditModePoint(self):
         self.updateActivePen()
         self.editMode = modes.EDIT_MODE_POINT
+        self.insertMode = modes.INSERT_MODE_NONE
 
     def setEditModeText(self):
         self.updateActivePen()
         self.editMode = modes.EDIT_MODE_TEXT
+        self.insertMode = modes.INSERT_MODE_NONE
 
     def updateActivePen(self):
         if self.active_poly and self.editMode == modes.EDIT_MODE_OBJECT:
