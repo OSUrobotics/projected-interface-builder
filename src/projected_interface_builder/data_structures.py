@@ -29,14 +29,34 @@ from PySide import QtGui, QtCore
 import datetime, time
 import numpy as np
 from projected_interface_builder import modes
+from functools import partial
 
 FONT = QtGui.QFont('Decorative', 30)
 
 class PolygonInfo(QtGui.QGraphicsPolygonItem):
-
     class Signaler(QtCore.QObject):
         changed = QtCore.Signal(QtGui.QPolygonF)
         focus = QtCore.Signal(bool)
+        moved = QtCore.Signal(QtCore.QPoint)
+
+    class PolygonVertex(QtGui.QGraphicsRectItem):
+        def __init__(self, rect, parent=None):
+            super(PolygonInfo.PolygonVertex, self).__init__(rect, parent)
+            self.setAcceptHoverEvents(True)
+            self.setFlag(QtGui.QGraphicsItem.ItemIsMovable, True)
+            self.signaler = PolygonInfo.Signaler()
+
+        def hoverEnterEvent(self, event):
+            self.setBrush(QtGui.QBrush(QtCore.Qt.gray))
+            self.parentItem().setFlag(QtGui.QGraphicsItem.ItemIsMovable, False)
+
+        def hoverLeaveEvent(self, event):
+            self.setBrush(QtGui.QBrush(QtCore.Qt.gray, bs=QtCore.Qt.NoBrush))
+            self.parentItem().setFlag(QtGui.QGraphicsItem.ItemIsMovable, True)
+
+        def mouseMoveEvent(self, event):
+            self.signaler.moved.emit(self.mapToScene(self.rect().center()).toPoint())
+            super(PolygonInfo.PolygonVertex, self).mouseMoveEvent(event)
 
     text_item = None
     def __init__(self, polygon=None, text_rect=None, uid=None, name=''):
@@ -119,7 +139,25 @@ class PolygonInfo(QtGui.QGraphicsPolygonItem):
     def focusInEvent(self, event):
         self.signaler.focus.emit(True)
         super(PolygonInfo, self).focusInEvent(event)
+        self.showControlPoints()
 
     def focusOutEvent(self, event):
         self.signaler.focus.emit(False)
         super(PolygonInfo, self).focusOutEvent(event)
+
+    def showControlPoints(self):
+        template = QtCore.QRectF(0,0,6,6)
+        rect_pen = self.pen()
+        rect_pen.setColor(QtCore.Qt.white)
+        for idx, pt in enumerate(self.polygon()):
+            rect = QtCore.QRectF(template)
+            rect.moveCenter(pt)
+            rectItem = PolygonInfo.PolygonVertex(rect, parent=self)
+            rectItem.signaler.moved.connect(partial(self.vertexMoved, idx))
+            rectItem.setPen(rect_pen)
+
+    def vertexMoved(self, idx, point):
+        poly = self.polygon()
+        poly.replace(idx, point)
+        self.setPolygon(poly)
+        self.signaler.changed.emit(self.mapToScene(self.polygon()))
