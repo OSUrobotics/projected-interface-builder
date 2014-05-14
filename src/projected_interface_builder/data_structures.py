@@ -55,8 +55,11 @@ class PolygonInfo(QtGui.QGraphicsPolygonItem):
             self.parentItem().setFlag(QtGui.QGraphicsItem.ItemIsMovable, True)
 
         def mouseMoveEvent(self, event):
-            self.signaler.moved.emit(self.mapToScene(self.rect().center()).toPoint())
+            self.signaler.moved.emit(self.mapToParent(event.pos().toPoint()).toPoint())
             super(PolygonInfo.PolygonVertex, self).mouseMoveEvent(event)
+            rect = self.rect()
+            rect.moveCenter(event.pos())
+            self.setRect(rect)
 
     text_item = None
     def __init__(self, polygon=None, text_rect=None, uid=None, name=''):
@@ -84,6 +87,7 @@ class PolygonInfo(QtGui.QGraphicsPolygonItem):
             self.id = self._gen_id()
 
         self.signaler = PolygonInfo.Signaler()
+        self.controlPoints = []
 
     def update_font_box(self, font_metrics=QtGui.QFontMetrics(FONT)):
         if self.text_item:
@@ -144,17 +148,24 @@ class PolygonInfo(QtGui.QGraphicsPolygonItem):
     def focusOutEvent(self, event):
         self.signaler.focus.emit(False)
         super(PolygonInfo, self).focusOutEvent(event)
+        self.hideControlPoints()
 
     def showControlPoints(self):
-        template = QtCore.QRectF(0,0,6,6)
+        template = QtCore.QRectF(0,0,7,7)
         rect_pen = self.pen()
         rect_pen.setColor(QtCore.Qt.white)
         for idx, pt in enumerate(self.polygon()):
             rect = QtCore.QRectF(template)
             rect.moveCenter(pt)
             rectItem = PolygonInfo.PolygonVertex(rect, parent=self)
+            self.controlPoints.append(rectItem)
             rectItem.signaler.moved.connect(partial(self.vertexMoved, idx))
             rectItem.setPen(rect_pen)
+
+    def hideControlPoints(self):
+        for pt in self.controlPoints:
+            self.scene().removeItem(pt)
+        self.controlPoints = []
 
     def vertexMoved(self, idx, point):
         poly = self.polygon()

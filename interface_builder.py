@@ -762,9 +762,10 @@ class DrawWidget(QtGui.QGraphicsView):
 
     def closeToAny(self, p):
         for poly_info in self.objects.values():
-            for v in poly_info.polygon():
-                if self.closeTo(v, p):
-                    return v
+            if (self.editMode is modes.EDIT_MODE_ANY and poly_info is not self.objects.get(self.active_poly)) or self.editMode is modes.EDIT_MODE_NONE:
+                for v in poly_info.polygon():
+                    if self.closeTo(v, p):
+                        return v
         return None
 
     def closeToCurrent(self, p):
@@ -853,7 +854,7 @@ class DrawWidget(QtGui.QGraphicsView):
         self._cursor_point.setRect(QtCore.QRectF(pos-offset, pos+offset))
 
     def get_line_endpoint(self, pos, modifiers, highlight=False):
-        if modifiers == QtCore.Qt.ControlModifier and self.insertMode != modes.INSERT_MODE_RECT:
+        if self.current_poly and (modifiers == QtCore.Qt.ControlModifier) and (self.insertMode != modes.INSERT_MODE_RECT):
             return self.snapToAxis(pos)
 
         cta = self.closeToAny(pos)
@@ -944,7 +945,7 @@ class DrawWidget(QtGui.QGraphicsView):
             pos = self.mapToScene(event.pos())
             self.cursorx = pos.x()
             self.cursory = pos.y()
-            endpoint = self.get_line_endpoint(pos, event.modifiers(), highlight=True)
+            endpoint = self.get_line_endpoint(pos, event.modifiers(), highlight=self.insertMode is modes.INSERT_MODE_ANY)
             self.mouseMoved.emit(endpoint)
 
             if self.insertMode == modes.INSERT_MODE_POLYGON:
@@ -990,7 +991,15 @@ class DrawWidget(QtGui.QGraphicsView):
             pos = event.pos()
             # pos.setY(-pos.y())
             self.mouseMoved.emit(self.mapToScene(pos))
-        super(DrawWidget, self).mouseMoveEvent(event)
+
+        endpoint = self.mapFromScene(endpoint if type(endpoint) is QtCore.QPoint else endpoint.toPoint())
+        super(DrawWidget, self).mouseMoveEvent(QtGui.QMouseEvent(
+                event.type(),
+                endpoint if type(endpoint) is QtCore.QPoint else endpoint.toPoint(),
+                event.button(),
+                event.buttons(),
+                event.modifiers(),
+            ))
 
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Control:
