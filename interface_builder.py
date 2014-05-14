@@ -777,12 +777,13 @@ class DrawWidget(QtGui.QGraphicsView):
         return None
 
     def snapToAxis(self, pt):
-        xdist = abs(pt.x() - self.current_poly[-1].line().p1().x())
-        ydist = abs(pt.y() - self.current_poly[-1].line().p1().y())
-        if xdist < ydist:
-            return QtCore.QPoint(self.current_poly[-1].line().p1().x(), pt.y())
-        else:
-            return QtCore.QPoint(pt.x(), self.current_poly[-1].line().p1().y())
+        if self.current_poly:
+            xdist = abs(pt.x() - self.current_poly[-1].line().p1().x())
+            ydist = abs(pt.y() - self.current_poly[-1].line().p1().y())
+            if xdist < ydist:
+                return QtCore.QPoint(self.current_poly[-1].line().p1().x(), pt.y())
+            else:
+                return QtCore.QPoint(pt.x(), self.current_poly[-1].line().p1().y())
 
     def do_rect_click(self, event):
         cursor = self.mapToScene(event.pos())
