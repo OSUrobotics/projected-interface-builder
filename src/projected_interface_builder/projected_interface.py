@@ -57,6 +57,7 @@ class ProjectedInterface(object):
         @param dispatch_rate:  not currently used
         '''
         self._callbacks = dict()
+        self._hover_callbacks = dict()
         self._dispatch_lock = RLock()
         self._config_inited = False
         self._save_changes = False
@@ -88,6 +89,7 @@ class ProjectedInterface(object):
         rospy.loginfo("polygon clear service ready")
     	self.polygon_viz = rospy.Publisher('/polygon_viz', PolygonStamped)
         self._subscribe_to_clicks()
+        self._subscribe_to_hover()
         self.dispatch_rate = rospy.Rate(self.dispatch_rate)
         reconfig_srv = Server(InterfaceConfig, self._reconfig_cb)
 
@@ -125,16 +127,28 @@ class ProjectedInterface(object):
         return config
 
     def _subscribe_to_clicks(self):
-        self.click_sub = rospy.Subscriber('/clicked_object', std_msgs.msg.String, self._dispatch, queue_size=1)
-        
+        self.hover_sub = rospy.Subscriber('/clicked_object', std_msgs.msg.String, self._dispatch, queue_size=10)
+
+    def _subscribe_to_hover(self):
+        self.hover_sub = rospy.Subscriber('/hovered_object', std_msgs.msg.String, self._dispatch_hover, queue_size=10)
+
     def _dispatch(self, msg):
         '''Receives a click and calls any callbacks defined for the specified object.'''
         if self._dispatch_lock.acquire(blocking=False) is True:
             uid = msg.data
+            # import pdb; pdb.set_trace()
             if uid in self._callbacks:
                 self._callbacks[uid].__call__(self.polygons[uid])
             self._dispatch_lock.release()
         
+    def _dispatch_hover(self, msg):
+        '''Receives a hover and calls any callbacks defined for the specified objetc.'''
+        if self._dispatch_lock.acquire(blocking=False) is True:
+            uid = msg.data
+            if uid in self._hover_callbacks:
+                self._hover_callbacks[uid].__call__(self.polygons[uid])
+            self._dispatch_lock.release()
+
     def register_callback(self, uid, func):
         '''
         Registers a callback for a particular polygon.
@@ -143,6 +157,15 @@ class ProjectedInterface(object):
         @param func: Callback function. Should take a polygon object as an argument
         '''
         self._callbacks[uid] = func
+
+    def register_hover_callback(self, uid, func):
+        '''
+        Registers a hover callback for a particular polygon.
+
+        @param uid: Unique ID of a polygon
+        @param func: Callback function. Should take a polygon object as an argument
+        '''
+        self._hover_callbacks[uid] = func
 
     def publish_polygon(self, polygon):
         '''Publishes a single polygon.'''
