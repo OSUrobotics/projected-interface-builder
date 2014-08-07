@@ -986,13 +986,14 @@ class DrawWidget(QtGui.QGraphicsView):
                         rect.setTopLeft(endpoint)
 
                     self.ins_rect.setRect(rect)
+            endpoint = self.mapFromScene(endpoint if type(endpoint) is QtCore.QPoint else endpoint.toPoint())
         elif self.mouseMode == MOUSE_MODE_TEST:
             # Qt defines 0,0 in the upper left, so, and down as +y, so flip the y
             pos = event.pos()
             # pos.setY(-pos.y())
             self.mouseMoved.emit(self.mapToScene(pos))
+            endpoint = pos
 
-        endpoint = self.mapFromScene(endpoint if type(endpoint) is QtCore.QPoint else endpoint.toPoint())
         super(DrawWidget, self).mouseMoveEvent(QtGui.QMouseEvent(
                 event.type(),
                 endpoint if type(endpoint) is QtCore.QPoint else endpoint.toPoint(),
