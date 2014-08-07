@@ -169,10 +169,10 @@ class ProjectedInterface(object):
 
     def publish_polygon(self, polygon):
         '''Publishes a single polygon.'''
-        ps = QtPolyToROS(polygon.polygon, polygon.id, self.x, self.y, self.z, self.res, self.frame_id)
+        ps = QtPolyToROS(polygon['polygon'], polygon['uid'], self.x, self.y, self.z, self.res, self.frame_id)
         ps.header.stamp = rospy.Time.now()
-        text_rect = QtPolyToROS(QtRectToPoly(polygon.text_rect), '', self.x, self.y, self.z, self.res, self.frame_id)
-        self.polygon_proxy(polygon.id, polygon.name, ps, text_rect.polygon, self.polygon_colors[polygon.id])
+        text_rect = QtPolyToROS(QtRectToPoly(polygon['text_rect']), '', self.x, self.y, self.z, self.res, self.frame_id)
+        self.polygon_proxy(polygon['uid'], polygon['name'], ps, text_rect.polygon, self.polygon_colors[polygon['uid']])
             
     def set_hidden(self, polygon):
         '''Hides a polygon. Has no effect if the polygon is already hidden.'''
