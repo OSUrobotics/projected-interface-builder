@@ -29,6 +29,7 @@ import pickle
 import roslib; roslib.load_manifest('projected_interface_builder')
 import rospy
 import std_msgs.msg
+from std_srvs.srv import Empty, EmptyResponse
 from projector_interface.srv import DrawPolygon, DrawPolygonRequest, ClearPolygons
 from geometry_msgs.msg import Point, PolygonStamped
 from projected_interface_builder.colors import *
@@ -80,18 +81,21 @@ class ProjectedInterface(object):
         Initializes all of the service proxies, subscribers and publishers.
         Also publishes all of the polygons.
         '''
-    	self.polygon_proxy = rospy.ServiceProxy('/draw_polygon', DrawPolygon)
-    	rospy.loginfo("Waiting for polygon service")
-    	self.polygon_proxy.wait_for_service()
-    	rospy.loginfo("polygon service ready")
+        self.polygon_proxy = rospy.ServiceProxy('/draw_polygon', DrawPolygon)
+        rospy.loginfo("Waiting for polygon service")
+        self.polygon_proxy.wait_for_service()
+        rospy.loginfo("polygon service ready")
         rospy.loginfo("Waiting for polygon clear service")
         self.polygon_clear_proxy = rospy.ServiceProxy('/clear_polygons', ClearPolygons)
         rospy.loginfo("polygon clear service ready")
-    	self.polygon_viz = rospy.Publisher('/polygon_viz', PolygonStamped)
+        self.polygon_viz = rospy.Publisher('/polygon_viz', PolygonStamped)
         self._subscribe_to_clicks()
         self._subscribe_to_hover()
         self.dispatch_rate = rospy.Rate(self.dispatch_rate)
         reconfig_srv = Server(InterfaceConfig, self._reconfig_cb)
+
+        self.display_mute_service = rospy.Service('~display_mute', Empty, self.display_mute)
+        self.display_unmute_service = rospy.Service('~display_unmute', Empty, self.display_unmute)
 
         self._wait_for_frame()
         self.publish_polygons()
@@ -199,6 +203,14 @@ class ProjectedInterface(object):
         for uid, polygon in self.polygons.iteritems():
             if uid not in self._hidden:
                 self.publish_polygon(polygon)
+
+    def display_mute(self, msg):
+        self.polygon_clear_proxy()
+        return EmptyResponse()
+
+    def display_unmute(self, msg):
+        self.publish_polygons()
+        return EmptyResponse()        
 
     def maybe_write_changes(self):
         '''Writes configuration changes to the interface file.'''
