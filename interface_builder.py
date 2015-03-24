@@ -29,7 +29,6 @@
 from __future__ import division
 
 PKG_NAME = 'projected_interface_builder'
-import roslib; roslib.load_manifest(PKG_NAME)
 import rospy, rospkg
 from PySide import QtGui, QtCore
 from math import hypot
@@ -174,9 +173,8 @@ class BuilderWindow(QtGui.QMainWindow):
         self.act_savea.triggered.connect(self._save_as)
 
         self.act_savea.triggered.connect(self.builder.save_polygons)
-        url = roslib.manifest.parse_file(roslib.manifest.manifest_file(PKG_NAME)).url
+        url = self.rp.get_manifest(PKG_NAME).url
         self.act_help.triggered.connect(lambda : QtGui.QDesktopServices.openUrl(url))
-        # import pdb; pdb.set_trace()
 
     def _save(self):
         self.builder.save_polygons(fname=self.builder.savefile)
