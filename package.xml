@@ -1,0 +1,49 @@
+<package>
+  <name>projected_interface_builder</name>
+  <version>1.0.0</version>
+  <description>Utility for graphically building projected interfaces.</description>
+  <maintainer email="lazewatd@engr.oregonstate.edu">Dan Lazewatsky</maintainer>
+
+  <license>BSD</license>
+
+  <url type="website">http://ros.org/wiki/projected_interface_builder</url>
+  <url type="bugtracker">https://github.com/OSUrobotics/projected-interface-builder/issues</url>
+
+  <author email="lazewatd@engr.oregonstate.edu">Dan Lazewatsky</author>
+
+  <!-- Dependencies which this package needs to build itself. -->
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <!-- Dependencies needed to compile this package. -->
+  <build_depend>dynamic_reconfigure</build_depend>
+  <build_depend>rospy</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>projector_interface</build_depend>
+
+  <!-- Dependencies needed after this package is compiled. -->
+  <build_depend>catkin</build_depend>
+  <build_depend>pr2_python</build_depend>
+  <build_depend>sound_play</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>std_srvs</build_depend>
+  <build_depend>tf</build_depend>
+  <build_depend>visualization_msgs</build_depend>
+  <run_depend>dynamic_reconfigure</run_depend>
+  <run_depend>rospy</run_depend>
+  <run_depend>sensor_msgs</run_depend>
+  <run_depend>geometry_msgs</run_depend>
+  <run_depend>projector_interface</run_depend>
+  <run_depend>catkin</run_depend>
+  <run_depend>pr2_python</run_depend>
+  <run_depend>sound_play</run_depend>
+  <run_depend>std_msgs</run_depend>
+  <run_depend>std_srvs</run_depend>
+  <run_depend>tf</run_depend>
+  <run_depend>visualization_msgs</run_depend>
+
+<export>
+    <rosdoc config="rosdoc.yaml"/>
+</export>
+
+</package>
