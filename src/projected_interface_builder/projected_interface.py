@@ -41,7 +41,7 @@ from std_msgs.msg import ColorRGBA
 from threading import RLock
 
 from dynamic_reconfigure.server import Server
-from projected_interface_builder.cfg import InterfaceConfig
+from projected_interface_builder.cfg import InterfaceAdjustmentsConfig as InterfaceConfig
 import tf
 
 class ProjectedInterface(object):
