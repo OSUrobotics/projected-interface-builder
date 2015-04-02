@@ -8,10 +8,7 @@ generate_dynamic_reconfigure_options(
 )
 
 catkin_package(
-    DEPENDS python-qt-bindings python-scipy # TODO
-    CATKIN_DEPENDS dynamic_reconfigure sensor_msgs rospy geometry_msgs projector_interface
-    INCLUDE_DIRS # TODO include
-    LIBRARIES # TODO
+    CATKIN_DEPENDS dynamic_reconfigure sensor_msgs rospy geometry_msgs projector_interface std_srvs
 )
 
 install(DIRECTORY cfg icons DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
