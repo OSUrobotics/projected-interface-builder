@@ -32,11 +32,13 @@ import std_msgs.msg
 from std_srvs.srv import Empty, EmptyResponse
 from projector_interface.srv import DrawPolygon, DrawPolygonRequest, ClearPolygons
 from geometry_msgs.msg import Point, PolygonStamped
+from visualization_msgs.msg import MarkerArray
 from projected_interface_builder.colors import *
-from projected_interface_builder.convert_utils import QtPolyToROS, QtRectToPoly
+from projected_interface_builder.convert_utils import QtPolyToROS, QtRectToPoly, toMarker
 from projected_interface_builder.data_structures import PolygonInfo
 from projected_interface_builder import colors
 from std_msgs.msg import ColorRGBA
+import numpy as np
 
 from threading import RLock
 
@@ -64,6 +66,8 @@ class ProjectedInterface(object):
         self._save_changes = False
         self._hidden = set()
 
+        self._publish_viz = rospy.get_param('~publish_viz', True)
+
         with open(polygon_file, 'r') as f:
             data = pickle.load(f)
         self.polygon_file = polygon_file
@@ -88,7 +92,8 @@ class ProjectedInterface(object):
         rospy.loginfo("Waiting for polygon clear service")
         self.polygon_clear_proxy = rospy.ServiceProxy('/clear_polygons', ClearPolygons)
         rospy.loginfo("polygon clear service ready")
-        self.polygon_viz = rospy.Publisher('/polygon_viz', PolygonStamped)
+        if self._publish_viz:
+            self.polygon_viz = rospy.Publisher('/polygon_viz', MarkerArray, latch=True)
         self._subscribe_to_clicks()
         self._subscribe_to_hover()
         self.dispatch_rate = rospy.Rate(self.dispatch_rate)
@@ -177,6 +182,7 @@ class ProjectedInterface(object):
         ps.header.stamp = rospy.Time.now()
         text_rect = QtPolyToROS(QtRectToPoly(polygon['text_rect']), '', self.x, self.y, self.z, self.res, self.frame_id)
         self.polygon_proxy(polygon['uid'], polygon['name'], ps, text_rect.polygon, self.polygon_colors[polygon['uid']])
+        return ps
             
     def set_hidden(self, polygon):
         '''Hides a polygon. Has no effect if the polygon is already hidden.'''
@@ -200,9 +206,13 @@ class ProjectedInterface(object):
     def publish_polygons(self):
         '''Publishes all polygons.'''
         self.polygon_clear_proxy()
+        markers = MarkerArray()
         for uid, polygon in self.polygons.iteritems():
             if uid not in self._hidden:
-                self.publish_polygon(polygon)
+                ps = self.publish_polygon(polygon)
+                markers.markers.append(toMarker(ps, np.int32(hash(uid))))
+        if self._publish_viz:
+            self.polygon_viz.publish(markers)        
 
     def display_mute(self, msg):
         self.polygon_clear_proxy()
