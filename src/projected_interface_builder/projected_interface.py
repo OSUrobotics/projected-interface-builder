@@ -26,16 +26,12 @@
 # Author Dan Lazewatsky/lazewatd@engr.orst.edu
 
 import pickle
-import roslib; roslib.load_manifest('projected_interface_builder')
 import rospy
 import std_msgs.msg
 from std_srvs.srv import Empty, EmptyResponse
-from projector_interface.srv import DrawPolygon, DrawPolygonRequest, ClearPolygons
-from geometry_msgs.msg import Point, PolygonStamped
+from projector_interface.srv import DrawPolygon, ClearPolygons
 from visualization_msgs.msg import MarkerArray
-from projected_interface_builder.colors import *
 from projected_interface_builder.convert_utils import QtPolyToROS, QtRectToPoly, toMarker
-from projected_interface_builder.data_structures import PolygonInfo
 from projected_interface_builder import colors
 from std_msgs.msg import ColorRGBA
 import numpy as np
@@ -79,7 +75,7 @@ class ProjectedInterface(object):
         self.polygons = data['polygons']
         self.polygon_colors = dict(zip(self.polygons.keys(), len(self.polygons.keys())*[colors.WHITE]))
         self.dispatch_rate = dispatch_rate
-        
+
     def start(self):
         '''
         Initializes all of the service proxies, subscribers and publishers.
@@ -149,7 +145,7 @@ class ProjectedInterface(object):
             if uid in self._callbacks:
                 self._callbacks[uid].__call__(self.polygons[uid])
             self._dispatch_lock.release()
-        
+
     def _dispatch_hover(self, msg):
         '''Receives a hover and calls any callbacks defined for the specified objetc.'''
         if self._dispatch_lock.acquire(blocking=False) is True:
@@ -183,7 +179,7 @@ class ProjectedInterface(object):
         text_rect = QtPolyToROS(QtRectToPoly(polygon['text_rect']), '', self.x, self.y, self.z, self.res, self.frame_id)
         self.polygon_proxy(polygon['uid'], polygon['name'], ps, text_rect.polygon, self.polygon_colors[polygon['uid']])
         return ps
-            
+
     def set_hidden(self, polygon):
         '''Hides a polygon. Has no effect if the polygon is already hidden.'''
         self._hidden.add(polygon)
@@ -212,7 +208,7 @@ class ProjectedInterface(object):
                 ps = self.publish_polygon(polygon)
                 markers.markers.append(toMarker(ps, np.int32(hash(uid))))
         if self._publish_viz:
-            self.polygon_viz.publish(markers)        
+            self.polygon_viz.publish(markers)
 
     def display_mute(self, msg):
         self.polygon_clear_proxy()
@@ -220,7 +216,7 @@ class ProjectedInterface(object):
 
     def display_unmute(self, msg):
         self.publish_polygons()
-        return EmptyResponse()        
+        return EmptyResponse()
 
     def maybe_write_changes(self):
         '''Writes configuration changes to the interface file.'''
