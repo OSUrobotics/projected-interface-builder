@@ -55,6 +55,7 @@ class ProjectedInterface(object):
         @param polygon_file: pickle-formatted file path containing interface data
         @param dispatch_rate:  not currently used
         '''
+        self._muted = True
         self._callbacks = dict()
         self._hover_callbacks = dict()
         self._dispatch_lock = RLock()
@@ -81,6 +82,7 @@ class ProjectedInterface(object):
         Initializes all of the service proxies, subscribers and publishers.
         Also publishes all of the polygons.
         '''
+        self._muted = rospy.get_param('~start_muted', False)
         self.polygon_proxy = rospy.ServiceProxy('/draw_polygon', DrawPolygon)
         rospy.loginfo("Waiting for polygon service")
         self.polygon_proxy.wait_for_service()
@@ -99,7 +101,9 @@ class ProjectedInterface(object):
         self.display_unmute_service = rospy.Service('~display_unmute', Empty, self.display_unmute)
 
         self._wait_for_frame()
-        self.publish_polygons()
+
+        if not self._muted:
+            self.publish_polygons()
 
     def _wait_for_frame(self):
         r = rospy.Rate(10)
@@ -127,7 +131,8 @@ class ProjectedInterface(object):
             config['offset_y'] = self.y
             config['offset_z'] = self.z
             self._config_inited = True
-        self.publish_polygons()
+        if not self._muted:
+            self.publish_polygons()
 
         return config
 
@@ -211,10 +216,12 @@ class ProjectedInterface(object):
             self.polygon_viz.publish(markers)
 
     def display_mute(self, msg):
+        self._muted = True
         self.polygon_clear_proxy()
         return EmptyResponse()
 
     def display_unmute(self, msg):
+        self._muted = False
         self.publish_polygons()
         return EmptyResponse()
 
